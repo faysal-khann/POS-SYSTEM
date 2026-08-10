@@ -1,17 +1,5 @@
-import { Text, View, StyleSheet } from "react-native";
-import "../../global.css"
-export default function Index() {
-  return (
-    <View >
-            <Text className="text-red-500 text-2xl bg-slate-500 rounded-2xl">Edit src/app/index.tsx to edit this screen 123.</Text>
-    </View>
-  );
-}
+import { Redirect } from "expo-router";
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-});
+export default function Index() {
+  return <Redirect href="/suppliers" />;
+}
