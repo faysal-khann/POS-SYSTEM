@@ -1,6 +1,9 @@
 import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable } from "react-native";
+import { useState } from "react";
+import {  Alert, ActivityIndicator } from "react-native";
+import { deleteSupplier } from "../services/supplierApi";
 type Supplier = {
   SupplierId: number;
   SupplierCode: string;
@@ -12,9 +15,43 @@ type Supplier = {
   Status: "Active" | "Inactive";
 };
 
-export default function SupplierCard({ supplier }: { supplier: Supplier }) {
-  const isActive = supplier.Status === "Active";
+type SupplierCardProps = {
+  supplier: Supplier;
+  onDeleted?: (supplierId: number) => void;
+};
 
+
+
+export default function SupplierCard({ supplier, onDeleted }: SupplierCardProps) {
+  const isActive = supplier.Status === "Active";
+  const [deleting, setDeleting] = useState(false);
+
+
+  const handleDelete = () => {
+    Alert.alert(
+      "Delete Supplier",
+      `Are you sure you want to delete "${supplier.SupplierName}"? This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setDeleting(true);
+              await deleteSupplier(supplier.SupplierId);
+              onDeleted?.(supplier.SupplierId);
+            } catch (err) {
+              console.error(err);
+              Alert.alert("Error", "Couldn't delete supplier. Please try again.");
+            } finally {
+              setDeleting(false);
+            }
+          },
+        },
+      ]
+    );
+  };
   return (
     <View className="bg-white border border-gray-200 rounded-xl p-4 mb-3 ">
       <View className="flex-row justify-between items-center mb-1">
@@ -66,9 +103,17 @@ export default function SupplierCard({ supplier }: { supplier: Supplier }) {
     </Pressable>
 
     {/* Delete */}
-    <Pressable className="bg-white border border-gray-100 rounded-md p-2 shadow-sm">
-      <Ionicons name="trash-outline" size={16} color="#EF4444" />
-    </Pressable>
+     <Pressable
+            onPress={handleDelete}
+            disabled={deleting}
+            className="bg-white border border-gray-100 rounded-md p-2 shadow-sm"
+          >
+            {deleting ? (
+              <ActivityIndicator size="small" color="#EF4444" />
+            ) : (
+              <Ionicons name="trash-outline" size={16} color="#EF4444" />
+            )}
+          </Pressable>
   </View>
       </View>
     </View>

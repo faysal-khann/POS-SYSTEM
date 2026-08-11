@@ -12,7 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import SupplierCard from "../../../components/SupplierCard";
 import SideMenu from "../../../components/SideMenu";
-import { getSuppliers, Supplier } from "../../../services/supplierApi";
+import { getSuppliers, createSupplier } from "../../../services/supplierApi";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function SupplierListScreen() {
@@ -54,7 +54,7 @@ export default function SupplierListScreen() {
   );
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50  pb-safe ">
+    <SafeAreaView className="flex-1 bg-gray-50  pb-40 ">
       <View>
         {/* Header */}
         <View className="flex-row items-center justify-between px-4 pt-4 pb-4 bg-white border-b border-gray-200">
@@ -62,20 +62,20 @@ export default function SupplierListScreen() {
             <TouchableOpacity onPress={() => setMenuVisible(true)}>
               <Ionicons name="menu" size={24} color="#111827" />
             </TouchableOpacity>
-            
+
             <Text className="text-lg font-semibold text-gray-900 ml-3">
               Supplier List
             </Text>
-           
           </View>
-           <TouchableOpacity onPress={() => router.push("/(tabs)/suppliers/add")} className="ml-3" >
-              <View className="bg-[#3B82F6] rounded-2xl p-2 flex-row">
-
-                 <Ionicons name="add" size={16} color="white"  />
-                 <Text className="text-white font-medium px-2">Add Supplier</Text>
-                </View>
-             
-            </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => router.push("/(tabs)/suppliers/add")}
+            className="ml-3"
+          >
+            <View className="bg-[#3B82F6] rounded-2xl p-2 flex-row">
+              <Ionicons name="add" size={16} color="white" />
+              <Text className="text-white font-medium px-2">Add Supplier</Text>
+            </View>
+          </TouchableOpacity>
         </View>
 
         {/* Search + filter */}
@@ -125,7 +125,16 @@ export default function SupplierListScreen() {
           <FlatList
             data={filteredSuppliers}
             keyExtractor={(item) => item.SupplierId.toString()}
-            renderItem={({ item }) => <SupplierCard supplier={item} />}
+            renderItem={({ item }) => (
+              <SupplierCard
+                supplier={item}
+                onDeleted={(id) =>
+                  setSuppliers((prev) =>
+                    prev.filter((s) => s.SupplierId !== id),
+                  )
+                }
+              />
+            )}
             contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
