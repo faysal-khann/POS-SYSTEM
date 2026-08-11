@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState,useEffect } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import { router } from "expo-router";
 import {
   createSupplier,
   SupplierInput,
+  getNextSupplierCode,
 } from "../../../services/supplierApi";
 
 
@@ -43,12 +44,8 @@ const Input = ({
 }: InputProps) => {
   return (
     <View className="mb-4">
-
       <Text className="text-sm font-medium text-gray-700 mb-1.5">
-        {label}{" "}
-        {required && (
-          <Text className="text-red-500">*</Text>
-        )}
+        {label} {required && <Text className="text-red-500">*</Text>}
       </Text>
 
       <TextInput
@@ -59,18 +56,15 @@ const Input = ({
         keyboardType={keyboardType}
         className="border border-gray-200 rounded-xl px-3 py-3 text-sm text-gray-800 bg-white"
       />
-
     </View>
   );
 };
-
 
 // =====================================================
 // ADD SUPPLIER SCREEN
 // =====================================================
 
 export default function AddSupplierScreen() {
-
   const [form, setForm] = useState<SupplierInput>({
     SupplierName: "",
     Phone: "",
@@ -90,96 +84,85 @@ export default function AddSupplierScreen() {
     Notes: "",
     Status: "Active",
   });
+  
 
   const [saving, setSaving] = useState(false);
+  const [supplierCode, setSupplierCode] = useState("");
 
+  useEffect(() => {
+  const loadSupplierCode = async () => {
+    try {
+      console.log("Calling getNextSupplierCode...");
+
+      const code = await getNextSupplierCode();
+
+      console.log("Supplier code received:", code);
+
+      setSupplierCode(code);
+    } catch (error) {
+      console.error("Supplier code error:", error);
+    }
+  };
+
+  loadSupplierCode();
+}, []);
 
   // =====================================================
   // UPDATE FORM
   // =====================================================
 
-  const update = (
-    key: keyof SupplierInput,
-    value: string | number
-  ) => {
+  const update = (key: keyof SupplierInput, value: string | number) => {
     setForm((prev) => ({
       ...prev,
       [key]: value,
     }));
   };
-
+  
 
   // =====================================================
   // SAVE
   // =====================================================
 
   const handleSave = async () => {
-
     if (!form.SupplierName?.trim()) {
-      Alert.alert(
-        "Missing field",
-        "Supplier Name is required."
-      );
+      Alert.alert("Missing field", "Supplier Name is required.");
       return;
     }
 
     if (!form.Phone?.trim()) {
-      Alert.alert(
-        "Missing field",
-        "Phone is required."
-      );
+      Alert.alert("Missing field", "Phone is required.");
       return;
     }
 
     if (!form.AddressLine1?.trim()) {
-      Alert.alert(
-        "Missing field",
-        "Address Line 1 is required."
-      );
+      Alert.alert("Missing field", "Address Line 1 is required.");
       return;
     }
 
     if (!form.City?.trim()) {
-      Alert.alert(
-        "Missing field",
-        "City is required."
-      );
+      Alert.alert("Missing field", "City is required.");
       return;
     }
 
     try {
-
       setSaving(true);
 
       await createSupplier(form);
 
-      Alert.alert(
-        "Success",
-        "Supplier saved successfully.",
-        [
-          {
-            text: "OK",
-            onPress: () => router.back(),
-          },
-        ]
-      );
-
+      Alert.alert("Success", "Supplier saved successfully.", [
+        {
+          text: "OK",
+          onPress: () => router.back(),
+        },
+      ]);
     } catch (err) {
-
       console.error(err);
 
-      Alert.alert(
-        "Error",
-        "Couldn't save supplier. Check your connection."
-      );
-
+      Alert.alert("Error", "Couldn't save supplier. Check your connection.");
     } finally {
-
       setSaving(false);
-
     }
   };
-
 
   // =====================================================
   // UI
@@ -187,32 +170,20 @@ export default function AddSupplierScreen() {
 
   return (
     <View className="flex-1 bg-gray-50">
-
-
       {/* =================================================
           HEADER
       ================================================= */}
 
       <View className="flex-row items-center justify-between px-4 pt-14 pb-4 bg-white border-b border-gray-200">
-
         <View className="flex-row items-center">
-
-          <TouchableOpacity
-            onPress={() => router.back()}
-          >
-            <Ionicons
-              name="arrow-back"
-              size={22}
-              color="#111827"
-            />
+          <TouchableOpacity onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={22} color="#111827" />
           </TouchableOpacity>
 
           <Text className="text-lg font-semibold text-gray-900 ml-3">
             Add Supplier
           </Text>
-
         </View>
-
 
         {/* SAVE BUTTON */}
 
@@ -221,34 +192,19 @@ export default function AddSupplierScreen() {
           disabled={saving}
           className="bg-green-600 px-4 py-2 rounded-lg flex-row items-center"
         >
-
           {saving ? (
-
-            <ActivityIndicator
-              size="small"
-              color="#fff"
-            />
-
+            <ActivityIndicator size="small" color="#fff" />
           ) : (
-
             <>
-              <Ionicons
-                name="save-outline"
-                size={14}
-                color="#fff"
-              />
+              <Ionicons name="save-outline" size={14} color="#fff" />
 
               <Text className="text-white text-sm font-medium ml-1.5">
                 Save
               </Text>
             </>
-
           )}
-
         </TouchableOpacity>
-
       </View>
-
 
       {/* =================================================
           SCROLL VIEW
@@ -261,8 +217,6 @@ export default function AddSupplierScreen() {
         }}
         keyboardShouldPersistTaps="handled"
       >
-
-
         {/* =================================================
             BASIC INFORMATION
         ================================================= */}
@@ -271,25 +225,23 @@ export default function AddSupplierScreen() {
           Basic Information
         </Text>
 
-
         {/* SUPPLIER CODE */}
 
-        <View className="mb-2">
-
+        <View className="mb-4">
           <Text className="text-sm font-medium text-gray-700 mb-1.5">
             Supplier Code
           </Text>
 
           <View className="border border-gray-200 rounded-xl px-3 py-3 bg-gray-100">
-
-            <Text className="text-sm text-gray-500">
-              Auto-generated on save
-            </Text>
-
+            {supplierCode ? (
+              <Text className="text-sm font-semibold text-gray-700">
+                {supplierCode}
+              </Text>
+            ) : (
+              <Text className="text-sm text-gray-400">Generating...</Text>
+            )}
           </View>
-
         </View>
-
 
         <Input
           form={form}
@@ -299,7 +251,6 @@ export default function AddSupplierScreen() {
           placeholder="Enter supplier name"
           required
         />
-
 
         <Input
           form={form}
@@ -311,7 +262,6 @@ export default function AddSupplierScreen() {
           keyboardType="phone-pad"
         />
 
-
         <Input
           form={form}
           update={update}
@@ -321,7 +271,6 @@ export default function AddSupplierScreen() {
           keyboardType="email-address"
         />
 
-
         <Input
           form={form}
           update={update}
@@ -330,7 +279,6 @@ export default function AddSupplierScreen() {
           placeholder="Enter website"
         />
 
-
         {/* =================================================
             ADDRESS INFORMATION
         ================================================= */}
@@ -338,7 +286,6 @@ export default function AddSupplierScreen() {
         <Text className="text-base font-semibold text-gray-900 mb-3 mt-4">
           Address Information
         </Text>
-
 
         <Input
           form={form}
@@ -349,7 +296,6 @@ export default function AddSupplierScreen() {
           required
         />
 
-
         <Input
           form={form}
           update={update}
@@ -357,7 +303,6 @@ export default function AddSupplierScreen() {
           label="Address Line 2"
           placeholder="Enter address line 2"
         />
-
 
         <Input
           form={form}
@@ -368,7 +313,6 @@ export default function AddSupplierScreen() {
           required
         />
 
-
         <Input
           form={form}
           update={update}
@@ -376,7 +320,6 @@ export default function AddSupplierScreen() {
           label="State / Division"
           placeholder="Select state / division"
         />
-
 
         <Input
           form={form}
@@ -386,7 +329,6 @@ export default function AddSupplierScreen() {
           placeholder="Enter postal code"
         />
 
-
         <Input
           form={form}
           update={update}
@@ -394,7 +336,6 @@ export default function AddSupplierScreen() {
           label="Country"
           placeholder="Bangladesh"
         />
-
 
         {/* =================================================
             OTHER INFORMATION
@@ -404,7 +345,6 @@ export default function AddSupplierScreen() {
           Other Information
         </Text>
 
-
         <Input
           form={form}
           update={update}
@@ -412,7 +352,6 @@ export default function AddSupplierScreen() {
           label="Contact Person"
           placeholder="Enter contact person"
         />
-
 
         <Input
           form={form}
@@ -423,7 +362,6 @@ export default function AddSupplierScreen() {
           keyboardType="phone-pad"
         />
 
-
         <Input
           form={form}
           update={update}
@@ -432,13 +370,11 @@ export default function AddSupplierScreen() {
           placeholder="Enter tax / vat number"
         />
 
-
         {/* =================================================
             OPENING BALANCE
         ================================================= */}
 
         <View className="mb-4">
-
           <Text className="text-sm font-medium text-gray-700 mb-1.5">
             Opening Balance
           </Text>
@@ -446,46 +382,33 @@ export default function AddSupplierScreen() {
           <TextInput
             value={String(form.OpeningBalance ?? 0)}
             onChangeText={(value) =>
-              update(
-                "OpeningBalance",
-                Number(value) || 0
-              )
+              update("OpeningBalance", Number(value) || 0)
             }
             placeholder="0.00"
             placeholderTextColor="#9CA3AF"
             keyboardType="numeric"
             className="border border-gray-200 rounded-xl px-3 py-3 text-sm text-gray-800 bg-white"
           />
-
         </View>
-
 
         {/* =================================================
             CREDIT LIMIT
         ================================================= */}
 
         <View className="mb-4">
-
           <Text className="text-sm font-medium text-gray-700 mb-1.5">
             Credit Limit
           </Text>
 
           <TextInput
             value={String(form.CreditLimit ?? 0)}
-            onChangeText={(value) =>
-              update(
-                "CreditLimit",
-                Number(value) || 0
-              )
-            }
+            onChangeText={(value) => update("CreditLimit", Number(value) || 0)}
             placeholder="0.00"
             placeholderTextColor="#9CA3AF"
             keyboardType="numeric"
             className="border border-gray-200 rounded-xl px-3 py-3 text-sm text-gray-800 bg-white"
           />
-
         </View>
-
 
         {/* =================================================
             NOTES
@@ -495,12 +418,9 @@ export default function AddSupplierScreen() {
           Notes
         </Text>
 
-
         <TextInput
           value={form.Notes}
-          onChangeText={(value) =>
-            update("Notes", value)
-          }
+          onChangeText={(value) => update("Notes", value)}
           placeholder="Enter notes"
           placeholderTextColor="#9CA3AF"
           multiline
@@ -509,34 +429,22 @@ export default function AddSupplierScreen() {
           className="border border-gray-200 rounded-xl px-3 py-3 text-sm text-gray-800 bg-white mb-4"
         />
 
-
         {/* =================================================
             STATUS
         ================================================= */}
 
         <View className="flex-row items-center justify-between bg-white border border-gray-200 rounded-xl px-4 py-3 mb-6">
-
-          <Text className="text-sm font-medium text-gray-700">
-            Status
-          </Text>
-
+          <Text className="text-sm font-medium text-gray-700">Status</Text>
 
           <View className="flex-row items-center">
-
             <Text className="text-sm text-gray-600 mr-2">
-              {form.Status === "Active"
-                ? "Active"
-                : "Inactive"}
+              {form.Status === "Active" ? "Active" : "Inactive"}
             </Text>
-
 
             <Switch
               value={form.Status === "Active"}
               onValueChange={(value) =>
-                update(
-                  "Status",
-                  value ? "Active" : "Inactive"
-                )
+                update("Status", value ? "Active" : "Inactive")
               }
               trackColor={{
                 false: "#D1D5DB",
@@ -544,13 +452,9 @@ export default function AddSupplierScreen() {
               }}
               thumbColor="#fff"
             />
-
           </View>
-
         </View>
-
       </ScrollView>
-
     </View>
   );
 }

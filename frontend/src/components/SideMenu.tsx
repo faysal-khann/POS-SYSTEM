@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { router } from "expo-router";
 import {
   View,
   Text,
@@ -27,7 +28,11 @@ const menuItems = [
 ];
 
 const supplierSubItems = ["Supplier List", "Add Supplier", "Supplier Ledger"];
-
+const supplierRoutes: Record<string, string> = {
+  "Supplier List": "/suppliers",
+  "Add Supplier": "/suppliers/add",
+  "Supplier Ledger": "/suppliers/ledger",
+};
 const bottomItems = [
   { label: "Customers", icon: "people-outline" },
   { label: "Reports", icon: "document-text-outline" },
@@ -51,9 +56,6 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
   if (!visible) return null;
 
   return (
-   
-
-    
     <SafeAreaView className="absolute pt-5 inset-0 flex-row z-50">
       {/* Overlay */}
       <Pressable className="flex-1 bg-black/40" onPress={onClose} />
@@ -65,9 +67,7 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
       >
         <View className="flex-row items-center mb-8 px-2">
           <Ionicons name="storefront-outline" size={22} color="#3B82F6" />
-          <Text className="text-white font-bold text-lg ml-2">
-            POS SYSTEM
-          </Text>
+          <Text className="text-white font-bold text-lg ml-2">POS SYSTEM</Text>
         </View>
 
         {menuItems.map((item) => (
@@ -102,6 +102,13 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
           supplierSubItems.map((sub) => (
             <TouchableOpacity
               key={sub}
+              onPress={() => {
+                const route = supplierRoutes[sub];
+
+                if (route) {
+                  router.push(route as any);
+                }
+              }}
               className="py-2.5 pl-10 pr-2 rounded-lg mb-1"
             >
               <Text className="text-gray-400 text-sm">{sub}</Text>
@@ -120,7 +127,6 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
           </TouchableOpacity>
         ))}
       </Animated.View>
-  
     </SafeAreaView>
   );
 }

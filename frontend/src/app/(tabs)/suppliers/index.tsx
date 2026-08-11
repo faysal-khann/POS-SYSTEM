@@ -45,13 +45,15 @@ export default function SupplierListScreen() {
     setRefreshing(true);
     fetchSuppliers();
   };
-
+  
   const filteredSuppliers = suppliers.filter(
     (s) =>
       s.SupplierName.toLowerCase().includes(search.toLowerCase()) ||
       s.Phone.includes(search) ||
       s.Email?.toLowerCase().includes(search.toLowerCase()),
   );
+
+  
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50  pb-40 ">

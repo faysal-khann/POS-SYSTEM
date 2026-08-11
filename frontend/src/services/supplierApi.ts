@@ -43,3 +43,9 @@ export const deleteSupplier = async (supplierId: number) => {
   const res = await supplierApi.delete(`/suppliers/${supplierId}`);
   return res.data;
 };
+
+export const getNextSupplierCode = async (): Promise<string> => {
+  const response = await supplierApi.get("/suppliers/next-code");
+
+  return response.data.SupplierCode;
+};
