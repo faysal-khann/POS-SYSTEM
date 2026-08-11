@@ -1,6 +1,6 @@
 import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-
+import { Pressable } from "react-native";
 type Supplier = {
   SupplierId: number;
   SupplierCode: string;
@@ -16,7 +16,7 @@ export default function SupplierCard({ supplier }: { supplier: Supplier }) {
   const isActive = supplier.Status === "Active";
 
   return (
-    <View className="bg-white border border-gray-200 rounded-xl p-4 mb-3">
+    <View className="bg-white border border-gray-200 rounded-xl p-4 mb-3 ">
       <View className="flex-row justify-between items-center mb-1">
         <Text className="text-base font-semibold text-gray-900">
           {supplier.SupplierName}
@@ -54,9 +54,22 @@ export default function SupplierCard({ supplier }: { supplier: Supplier }) {
         <Text className="text-orange-500 font-semibold text-sm">
           ৳ {supplier.DueAmount.toLocaleString()} due
         </Text>
-        <TouchableOpacity>
-          <Ionicons name="ellipsis-horizontal" size={18} color="#6B7280" />
-        </TouchableOpacity>
+        <View className="flex-row gap-2">
+    {/* View */}
+    <Pressable className="bg-white border border-gray-100 rounded-md p-2 shadow-sm">
+      <Ionicons name="eye-outline" size={16} color="#3B82F6" />
+    </Pressable>
+
+    {/* Edit */}
+    <Pressable className="bg-white border border-gray-100 rounded-md p-2 shadow-sm">
+      <Ionicons name="create-outline" size={16} color="#22C55E" />
+    </Pressable>
+
+    {/* Delete */}
+    <Pressable className="bg-white border border-gray-100 rounded-md p-2 shadow-sm">
+      <Ionicons name="trash-outline" size={16} color="#EF4444" />
+    </Pressable>
+  </View>
       </View>
     </View>
   );

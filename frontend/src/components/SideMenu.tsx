@@ -8,6 +8,7 @@ import {
   Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const { width } = Dimensions.get("window");
 const MENU_WIDTH = width * 0.75;
@@ -50,7 +51,10 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
   if (!visible) return null;
 
   return (
-    <View className="absolute inset-0 flex-row z-50">
+   
+
+    
+    <SafeAreaView className="absolute pt-5 inset-0 flex-row z-50">
       {/* Overlay */}
       <Pressable className="flex-1 bg-black/40" onPress={onClose} />
 
@@ -116,6 +120,7 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
           </TouchableOpacity>
         ))}
       </Animated.View>
-    </View>
+  
+    </SafeAreaView>
   );
 }
