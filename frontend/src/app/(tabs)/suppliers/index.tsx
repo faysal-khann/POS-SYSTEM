@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Modal,
+  Pressable,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -22,6 +24,11 @@ export default function SupplierListScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sortAZ, setSortAZ] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<
+    "All" | "Active" | "Inactive"
+  >("All");
+  const [showFilter, setShowFilter] = useState(false);
 
   const fetchSuppliers = useCallback(async () => {
     try {
@@ -45,15 +52,20 @@ export default function SupplierListScreen() {
     setRefreshing(true);
     fetchSuppliers();
   };
-  
+
   const filteredSuppliers = suppliers.filter(
     (s) =>
-      s.SupplierName.toLowerCase().includes(search.toLowerCase()) ||
-      s.Phone.includes(search) ||
-      s.Email?.toLowerCase().includes(search.toLowerCase()),
+      (s.SupplierName.toLowerCase().includes(search.toLowerCase()) ||
+        s.Phone.includes(search) ||
+        s.Email?.toLowerCase().includes(search.toLowerCase())) &&
+      (statusFilter === "All" || s.Status === statusFilter),
   );
 
-  
+  const displayedSuppliers = sortAZ
+    ? [...filteredSuppliers].sort((a, b) =>
+        a.SupplierName.localeCompare(b.SupplierName),
+      )
+    : filteredSuppliers;
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50  pb-40 ">
@@ -82,8 +94,10 @@ export default function SupplierListScreen() {
 
         {/* Search + filter */}
         <View className="flex-row items-center px-4 mt-4 mb-2">
+          {/* Search */}
           <View className="flex-1 flex-row items-center bg-white border border-gray-200 rounded-xl px-3 py-2.5 mr-2">
             <Ionicons name="search" size={16} color="#9CA3AF" />
+
             <TextInput
               value={search}
               onChangeText={setSearch}
@@ -92,19 +106,121 @@ export default function SupplierListScreen() {
               className="ml-2 flex-1 text-sm text-gray-800"
             />
           </View>
-          <TouchableOpacity className="bg-white border border-gray-200 rounded-xl p-2.5">
-            <Ionicons name="filter" size={16} color="#374151" />
+
+          {/* Filter */}
+          <TouchableOpacity
+            onPress={() => setShowFilter(true)}
+            className={`bg-white border rounded-xl p-2.5 ${
+              statusFilter !== "All" ? "border-blue-500" : "border-gray-200"
+            }`}
+          >
+            <Ionicons
+              name="filter"
+              size={16}
+              color={statusFilter !== "All" ? "#3B82F6" : "#374151"}
+            />
           </TouchableOpacity>
         </View>
+
+        {showFilter && (
+          <View className="mx-4 mb-3 bg-white border border-gray-200 rounded-xl p-2 shadow-sm">
+            <Text className="text-sm font-semibold text-gray-700 px-2 py-1.5">
+              Filter by Status
+            </Text>
+
+            {/* All */}
+            <TouchableOpacity
+              onPress={() => {
+                setStatusFilter("All");
+                setShowFilter(false);
+              }}
+              className="flex-row items-center justify-between px-3 py-2.5 rounded-lg"
+            >
+              <Text
+                className={
+                  statusFilter === "All"
+                    ? "text-blue-500 font-semibold"
+                    : "text-gray-600"
+                }
+              >
+                All
+              </Text>
+
+              {statusFilter === "All" && (
+                <Ionicons name="checkmark" size={18} color="#3B82F6" />
+              )}
+            </TouchableOpacity>
+
+            {/* Active */}
+            <TouchableOpacity
+              onPress={() => {
+                setStatusFilter("Active");
+                setShowFilter(false);
+              }}
+              className="flex-row items-center justify-between px-3 py-2.5 rounded-lg"
+            >
+              <Text
+                className={
+                  statusFilter === "Active"
+                    ? "text-blue-500 font-semibold"
+                    : "text-gray-600"
+                }
+              >
+                Active
+              </Text>
+
+              {statusFilter === "Active" && (
+                <Ionicons name="checkmark" size={18} color="#3B82F6" />
+              )}
+            </TouchableOpacity>
+
+            {/* Inactive */}
+            <TouchableOpacity
+              onPress={() => {
+                setStatusFilter("Inactive");
+                setShowFilter(false);
+              }}
+              className="flex-row items-center justify-between px-3 py-2.5 rounded-lg"
+            >
+              <Text
+                className={
+                  statusFilter === "Inactive"
+                    ? "text-blue-500 font-semibold"
+                    : "text-gray-600"
+                }
+              >
+                Inactive
+              </Text>
+
+              {statusFilter === "Inactive" && (
+                <Ionicons name="checkmark" size={18} color="#3B82F6" />
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Count + sort */}
         <View className="flex-row justify-between items-center px-4 mb-2">
           <Text className="text-sm text-gray-500">
             {filteredSuppliers.length} suppliers
           </Text>
-          <TouchableOpacity className="flex-row items-center">
-            <Text className="text-sm text-gray-500 mr-1">Sort</Text>
-            <Ionicons name="swap-vertical" size={14} color="#6B7280" />
+          <TouchableOpacity
+            onPress={() => setSortAZ((prev) => !prev)}
+            className="flex-row items-center"
+          >
+            <Text
+              className={`text-sm mr-1 ${
+                sortAZ ? "text-blue-500 font-semibold" : "text-gray-500"
+              }`}
+            >
+              Sort
+            </Text>
+
+            <Ionicons
+              name="swap-vertical"
+              size={14}
+              color={sortAZ ? "#3B82F6" : "#6B7280"}
+            />
           </TouchableOpacity>
         </View>
 
@@ -125,7 +241,7 @@ export default function SupplierListScreen() {
           </View>
         ) : (
           <FlatList
-            data={filteredSuppliers}
+            data={displayedSuppliers}
             keyExtractor={(item) => item.SupplierId.toString()}
             renderItem={({ item }) => (
               <SupplierCard
@@ -150,6 +266,145 @@ export default function SupplierListScreen() {
         )}
 
         <SideMenu visible={menuVisible} onClose={() => setMenuVisible(false)} />
+        <Modal
+          visible={showFilter}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowFilter(false)}
+        >
+          {/* Dark background */}
+          <Pressable
+            className="flex-1 bg-black/40 justify-center items-center px-6"
+            onPress={() => setShowFilter(false)}
+          >
+            {/* Popup box */}
+            <Pressable
+              className="bg-white rounded-2xl w-full max-w-sm p-5"
+              onPress={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <View className="flex-row items-center justify-between mb-5">
+                <View className="flex-row items-center">
+                  <Ionicons name="filter" size={20} color="#3B82F6" />
+
+                  <Text className="text-lg font-semibold text-gray-900 ml-2">
+                    Filter Suppliers
+                  </Text>
+                </View>
+
+                <TouchableOpacity onPress={() => setShowFilter(false)}>
+                  <Ionicons name="close" size={22} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Status */}
+              <Text className="text-sm font-medium text-gray-700 mb-3">
+                Status
+              </Text>
+
+              {/* All */}
+              <TouchableOpacity
+                onPress={() => setStatusFilter("All")}
+                className={`flex-row items-center justify-between border rounded-xl px-4 py-3 mb-2 ${
+                  statusFilter === "All"
+                    ? "border-blue-500 bg-blue-50"
+                    : "border-gray-200 bg-white"
+                }`}
+              >
+                <Text
+                  className={
+                    statusFilter === "All"
+                      ? "text-blue-600 font-semibold"
+                      : "text-gray-700"
+                  }
+                >
+                  All Suppliers
+                </Text>
+
+                {statusFilter === "All" && (
+                  <Ionicons name="checkmark-circle" size={20} color="#3B82F6" />
+                )}
+              </TouchableOpacity>
+
+              {/* Active */}
+              <TouchableOpacity
+                onPress={() => setStatusFilter("Active")}
+                className={`flex-row items-center justify-between border rounded-xl px-4 py-3 mb-2 ${
+                  statusFilter === "Active"
+                    ? "border-green-500 bg-green-50"
+                    : "border-gray-200 bg-white"
+                }`}
+              >
+                <View className="flex-row items-center">
+                  <View className="w-2.5 h-2.5 rounded-full bg-green-500 mr-2" />
+
+                  <Text
+                    className={
+                      statusFilter === "Active"
+                        ? "text-green-600 font-semibold"
+                        : "text-gray-700"
+                    }
+                  >
+                    Active
+                  </Text>
+                </View>
+
+                {statusFilter === "Active" && (
+                  <Ionicons name="checkmark-circle" size={20} color="#22C55E" />
+                )}
+              </TouchableOpacity>
+
+              {/* Inactive */}
+              <TouchableOpacity
+                onPress={() => setStatusFilter("Inactive")}
+                className={`flex-row items-center justify-between border rounded-xl px-4 py-3 ${
+                  statusFilter === "Inactive"
+                    ? "border-red-500 bg-red-50"
+                    : "border-gray-200 bg-white"
+                }`}
+              >
+                <View className="flex-row items-center">
+                  <View className="w-2.5 h-2.5 rounded-full bg-red-500 mr-2" />
+
+                  <Text
+                    className={
+                      statusFilter === "Inactive"
+                        ? "text-red-600 font-semibold"
+                        : "text-gray-700"
+                    }
+                  >
+                    Inactive
+                  </Text>
+                </View>
+
+                {statusFilter === "Inactive" && (
+                  <Ionicons name="checkmark-circle" size={20} color="#EF4444" />
+                )}
+              </TouchableOpacity>
+
+              {/* Apply Button */}
+              <TouchableOpacity
+                onPress={() => setShowFilter(false)}
+                className="bg-blue-500 rounded-xl py-3 mt-5 items-center"
+              >
+                <Text className="text-white font-semibold">Apply Filter</Text>
+              </TouchableOpacity>
+
+              {/* Clear */}
+              {statusFilter !== "All" && (
+                <TouchableOpacity
+                  onPress={() => {
+                    setStatusFilter("All");
+                    setShowFilter(false);
+                  }}
+                  className="items-center mt-3"
+                >
+                  <Text className="text-gray-500 text-sm">Clear Filter</Text>
+                </TouchableOpacity>
+              )}
+            </Pressable>
+          </Pressable>
+        </Modal>
       </View>
     </SafeAreaView>
   );

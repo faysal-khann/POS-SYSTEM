@@ -14,6 +14,7 @@ type Supplier = {
   DueAmount: number;
   Status: "Active" | "Inactive";
 };
+import { router } from "expo-router";
 
 type SupplierCardProps = {
   supplier: Supplier;
@@ -93,12 +94,16 @@ export default function SupplierCard({ supplier, onDeleted }: SupplierCardProps)
         </Text>
         <View className="flex-row gap-2">
     {/* View */}
-    <Pressable className="bg-white border border-gray-100 rounded-md p-2 shadow-sm">
+    <Pressable className="bg-white border border-gray-100 rounded-md p-2 shadow-sm"
+      
+    >
       <Ionicons name="eye-outline" size={16} color="#3B82F6" />
     </Pressable>
 
     {/* Edit */}
-    <Pressable className="bg-white border border-gray-100 rounded-md p-2 shadow-sm">
+    <Pressable className="bg-white border border-gray-100 rounded-md p-2 shadow-sm"
+    onPress={() => router.push(`/suppliers/${supplier.SupplierId}`)}
+    >
       <Ionicons name="create-outline" size={16} color="#22C55E" />
     </Pressable>
 
