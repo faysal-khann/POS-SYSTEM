@@ -2,7 +2,7 @@ import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable } from "react-native";
 import { useState } from "react";
-import {  Alert, ActivityIndicator } from "react-native";
+import { Alert, ActivityIndicator } from "react-native";
 import { deleteSupplier } from "../services/supplierApi";
 type Supplier = {
   SupplierId: number;
@@ -21,12 +21,12 @@ type SupplierCardProps = {
   onDeleted?: (supplierId: number) => void;
 };
 
-
-
-export default function SupplierCard({ supplier, onDeleted }: SupplierCardProps) {
+export default function SupplierCard({
+  supplier,
+  onDeleted,
+}: SupplierCardProps) {
   const isActive = supplier.Status === "Active";
   const [deleting, setDeleting] = useState(false);
-
 
   const handleDelete = () => {
     Alert.alert(
@@ -44,17 +44,20 @@ export default function SupplierCard({ supplier, onDeleted }: SupplierCardProps)
               onDeleted?.(supplier.SupplierId);
             } catch (err) {
               console.error(err);
-              Alert.alert("Error", "Couldn't delete supplier. Please try again.");
+              Alert.alert(
+                "Error",
+                "Couldn't delete supplier. Please try again.",
+              );
             } finally {
               setDeleting(false);
             }
           },
         },
-      ]
+      ],
     );
   };
   return (
-    <View className="bg-white border border-gray-200 rounded-xl p-4 mb-3 ">
+    <View className="bg-white border border-gray-200 rounded-xl p-4 mb-3  ">
       <View className="flex-row justify-between items-center mb-1">
         <Text className="text-base font-semibold text-gray-900">
           {supplier.SupplierName}
@@ -93,22 +96,26 @@ export default function SupplierCard({ supplier, onDeleted }: SupplierCardProps)
           ৳ {supplier.DueAmount.toLocaleString()} due
         </Text>
         <View className="flex-row gap-2">
-    {/* View */}
-    <Pressable className="bg-white border border-gray-100 rounded-md p-2 shadow-sm"
-      onPress={() => router.push(`/suppliers/view/${supplier.SupplierId}`)}
-    >
-      <Ionicons name="eye-outline" size={16} color="#3B82F6" />
-    </Pressable>
+          {/* View */}
+          <Pressable
+            className="bg-white border border-gray-100 rounded-md p-2 shadow-sm"
+            onPress={() =>
+              router.push(`/suppliers/view/${supplier.SupplierId}`)
+            }
+          >
+            <Ionicons name="eye-outline" size={16} color="#3B82F6" />
+          </Pressable>
 
-    {/* Edit */}
-    <Pressable className="bg-white border border-gray-100 rounded-md p-2 shadow-sm"
-    onPress={() => router.push(`/suppliers/${supplier.SupplierId}`)}
-    >
-      <Ionicons name="create-outline" size={16} color="#22C55E" />
-    </Pressable>
+          {/* Edit */}
+          <Pressable
+            className="bg-white border border-gray-100 rounded-md p-2 shadow-sm"
+            onPress={() => router.push(`/suppliers/${supplier.SupplierId}`)}
+          >
+            <Ionicons name="create-outline" size={16} color="#22C55E" />
+          </Pressable>
 
-    {/* Delete */}
-     <Pressable
+          {/* Delete */}
+          <Pressable
             onPress={handleDelete}
             disabled={deleting}
             className="bg-white border border-gray-100 rounded-md p-2 shadow-sm"
@@ -119,7 +126,7 @@ export default function SupplierCard({ supplier, onDeleted }: SupplierCardProps)
               <Ionicons name="trash-outline" size={16} color="#EF4444" />
             )}
           </Pressable>
-  </View>
+        </View>
       </View>
     </View>
   );

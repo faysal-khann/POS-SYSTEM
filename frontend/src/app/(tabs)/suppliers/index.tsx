@@ -18,6 +18,7 @@ import { getSuppliers, createSupplier } from "../../../services/supplierApi";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function SupplierListScreen() {
+  const PAGE_SIZE = 1; // 👈 change this number to control suppliers per page
   const [menuVisible, setMenuVisible] = useState(false);
   const [search, setSearch] = useState("");
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -29,6 +30,9 @@ export default function SupplierListScreen() {
     "All" | "Active" | "Inactive"
   >("All");
   const [showFilter, setShowFilter] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(2); // 👈 default page size — change here
+  const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 
   const fetchSuppliers = useCallback(async () => {
     try {
@@ -67,9 +71,20 @@ export default function SupplierListScreen() {
       )
     : filteredSuppliers;
 
+  const totalPages = Math.max(
+    1,
+    Math.ceil(displayedSuppliers.length / pageSize),
+  );
+  const paginatedSuppliers = displayedSuppliers.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
+  );
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, statusFilter, sortAZ, pageSize]);
   return (
-    <SafeAreaView className="flex-1 bg-gray-50  pb-40 ">
-      <View>
+    <SafeAreaView className="flex-1 bg-gray-50">
+      
         {/* Header */}
         <View className="flex-row items-center justify-between px-4 pt-4 pb-4 bg-white border-b border-gray-200">
           <View className="flex-row items-center">
@@ -241,7 +256,8 @@ export default function SupplierListScreen() {
           </View>
         ) : (
           <FlatList
-            data={displayedSuppliers}
+            className="mb-20"
+            data={paginatedSuppliers} // 👈 changed from displayedSuppliers
             keyExtractor={(item) => item.SupplierId.toString()}
             renderItem={({ item }) => (
               <SupplierCard
@@ -265,6 +281,64 @@ export default function SupplierListScreen() {
           />
         )}
 
+        {!loading && !error && displayedSuppliers.length > 0 && (
+          <View className=" bg-white  border border-gray-200 px-4 py-2 absolute bottom-7 left-0 right-0  rounded-full mx-4 ">
+            {/* Page size selector */}
+            <View className="flex-row items-center justify-center mb-1">
+              <Text className="text-xs text-gray-500 mr-2">Show:</Text>
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <TouchableOpacity
+                  key={size}
+                  onPress={() => setPageSize(size)}
+                  className={`px-3 py-1 rounded-lg mx-1 ${
+                    pageSize === size ? "bg-blue-500" : "bg-gray-100"
+                  }`}
+                >
+                  <Text
+                    className={`text-xs ${
+                      pageSize === size
+                        ? "text-white font-semibold"
+                        : "text-gray-600"
+                    }`}
+                  >
+                    {size}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Prev / Next */}
+            <View className="flex-row items-center justify-between">
+              <TouchableOpacity
+                disabled={currentPage === 1}
+                onPress={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className={`flex-row items-center px-3 py-2 rounded-lg ${
+                  currentPage === 1 ? "opacity-40" : ""
+                }`}
+              >
+                <Ionicons name="chevron-back" size={16} color="#3B82F6" />
+                <Text className="text-blue-500 font-medium ml-1">Previous</Text>
+              </TouchableOpacity>
+
+              <Text className="text-sm text-gray-500">
+                Page {currentPage} of {totalPages}
+              </Text>
+
+              <TouchableOpacity
+                disabled={currentPage === totalPages}
+                onPress={() =>
+                  setCurrentPage((p) => Math.min(totalPages, p + 1))
+                }
+                className={`flex-row items-center px-3 py-2 rounded-lg ${
+                  currentPage === totalPages ? "opacity-40" : ""
+                }`}
+              >
+                <Text className="text-blue-500 font-medium mr-1">Next</Text>
+                <Ionicons name="chevron-forward" size={16} color="#3B82F6" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
         <SideMenu visible={menuVisible} onClose={() => setMenuVisible(false)} />
         <Modal
           visible={showFilter}
@@ -405,7 +479,7 @@ export default function SupplierListScreen() {
             </Pressable>
           </Pressable>
         </Modal>
-      </View>
+   
     </SafeAreaView>
   );
 }
