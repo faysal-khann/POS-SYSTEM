@@ -95,7 +95,7 @@ export default function SupplierCard({ supplier, onDeleted }: SupplierCardProps)
         <View className="flex-row gap-2">
     {/* View */}
     <Pressable className="bg-white border border-gray-100 rounded-md p-2 shadow-sm"
-      
+      onPress={() => router.push(`/suppliers/view/${supplier.SupplierId}`)}
     >
       <Ionicons name="eye-outline" size={16} color="#3B82F6" />
     </Pressable>
