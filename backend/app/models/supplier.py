@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, Numeric
-from .database import Base
+from ..database import Base
 
 
 class Supplier(Base):

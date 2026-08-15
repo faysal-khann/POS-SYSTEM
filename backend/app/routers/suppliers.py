@@ -4,8 +4,12 @@ from sqlalchemy import func
 from typing import List
 
 from ..database import get_db
-from ..models import Supplier
-from ..schemas import SupplierCreate, SupplierUpdate, SupplierOut
+from ..models.supplier import Supplier
+from ..schemas.supplier import (
+    SupplierCreate,
+    SupplierUpdate,
+    SupplierOut,
+)
 
 router = APIRouter(prefix="/suppliers", tags=["Suppliers"])
 

@@ -28,10 +28,17 @@ const menuItems = [
 ];
 
 const supplierSubItems = ["Supplier List", "Add Supplier", "Supplier Ledger"];
+const customerSubItems = ["Customer List", "Add Customer", "Customer Ledger", "Loyalty Points"];
 const supplierRoutes: Record<string, string> = {
   "Supplier List": "/suppliers",
   "Add Supplier": "/suppliers/add",
   "Supplier Ledger": "/suppliers/ledger",
+};
+const customerRoutes: Record<string, string> = {
+  "Customer List": "/customers",
+  "Add Customer": "/customers/add",
+  "Customer Ledger": "/customers/ledger",
+  "Loyalty Points": "/customers/loyalty",
 };
 const bottomItems = [
   { label: "Customers", icon: "people-outline" },
@@ -44,6 +51,7 @@ const bottomItems = [
 export default function SideMenu({ visible, onClose }: SideMenuProps) {
   const translateX = useRef(new Animated.Value(MENU_WIDTH)).current;
   const [suppliersOpen, setSuppliersOpen] = useState(true);
+  const [customersOpen, setCustomersOpen] = useState(true);
 
   useEffect(() => {
     Animated.timing(translateX, {
@@ -100,7 +108,7 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
 
         {suppliersOpen &&
           supplierSubItems.map((sub) => (
-            <TouchableOpacity
+            <TouchableOpacity 
               key={sub}
               onPress={() => {
                 const route = supplierRoutes[sub];
@@ -115,8 +123,41 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
             </TouchableOpacity>
           ))}
 
-        <View className="h-px bg-gray-700 my-3" />
+        {/* Customers - active/expanded */}
+          <TouchableOpacity
+          onPress={() => setCustomersOpen(!customersOpen)}
+          className="flex-row items-center justify-between py-3 px-2 rounded-lg bg-blue-600 mb-1"
+        >
+          <View className="flex-row items-center">
+            <Ionicons name="people-circle-outline" size={18} color="#fff" />
+            <Text className="text-white ml-3 text-sm font-medium">
+              Customers
+            </Text>
+          </View>
+          <Ionicons
+            name={customersOpen ? "chevron-up" : "chevron-down"}
+            size={14}
+            color="#fff"
+          />
+        </TouchableOpacity>
 
+        {customersOpen &&
+          customerSubItems.map((sub) => (
+            <TouchableOpacity 
+              key={sub}
+              onPress={() => {
+                const route = customerRoutes[sub];
+
+                if (route) {
+                  router.push(route as any);
+                }
+              }}
+              className="py-2.5 pl-10 pr-2 rounded-lg mb-1"
+            >
+              <Text className="text-gray-400 text-sm">{sub}</Text>
+            </TouchableOpacity>
+          ))}
+        
         {bottomItems.map((item) => (
           <TouchableOpacity
             key={item.label}

@@ -1,7 +1,7 @@
 import axios from "axios";
 
 // Physical device → your PC's local IP
-const API_URL = "http://192.168.15.15:8000";
+const API_URL = "http://192.168.0.102:8000";
 
 export const customerApi = axios.create({
   baseURL: API_URL,
