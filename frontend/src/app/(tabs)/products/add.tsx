@@ -13,7 +13,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import Dropdown from "../../../components/dropdown";
+import Dropdown from "../../../components/Dropdown";
 import {
   createProduct,
   getCategories,

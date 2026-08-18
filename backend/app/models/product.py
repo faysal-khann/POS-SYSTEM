@@ -4,17 +4,15 @@ from sqlalchemy.sql import func
 from ..database import Base
 
 
-class Category(Base):
-    __tablename__ = "Categories"
-    CategoryID = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    CategoryName = Column(String(100), nullable=False)
-    CreatedAt = Column(DateTime, server_default=func.now())
+
 
 
 class Brand(Base):
     __tablename__ = "Brands"
     BrandID = Column(Integer, primary_key=True, index=True, autoincrement=True)
     BrandName = Column(String(100), nullable=False)
+    Description = Column(String(255), nullable=True)
+    Status = Column(String(20), nullable=False, default="Active")
     CreatedAt = Column(DateTime, server_default=func.now())
 
 
@@ -22,6 +20,9 @@ class Unit(Base):
     __tablename__ = "Units"
     UnitID = Column(Integer, primary_key=True, index=True, autoincrement=True)
     UnitName = Column(String(50), nullable=False)
+    ShortName = Column(String(20), nullable=True)
+    Description = Column(String(255), nullable=True)
+    Status = Column(String(20), nullable=False, default="Active")
     CreatedAt = Column(DateTime, server_default=func.now())
 
 
@@ -54,3 +55,14 @@ class Product(Base):
     category = relationship("Category")
     brand = relationship("Brand")
     unit = relationship("Unit")
+
+
+    
+
+class Category(Base):
+    __tablename__ = "Categories"
+    CategoryID = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    CategoryName = Column(String(100), nullable=False)
+    Description = Column(String(255), nullable=True)
+    Status = Column(String(20), nullable=False, default="Active")
+    CreatedAt = Column(DateTime, server_default=func.now())

@@ -21,7 +21,9 @@ import {
   Product,
   deleteProduct,
 } from "../../../services/productApi";
+import { usePagination } from "../../../hooks/usePagination";
 import PaginationBar from "../../../components/PaginationBar";
+import Dropdown from "../../../components/Dropdown";
 
 export default function ProductListScreen() {
   const [menuVisible, setMenuVisible] = useState(false);
@@ -141,7 +143,15 @@ export default function ProductListScreen() {
   const categoryOptions = categories.filter(
     (category): category is string => !!category,
   );
-
+    const {
+    currentPage,
+    totalPages,
+    pageSize,
+    setPageSize,
+    paginatedData,
+    nextPage,
+    prevPage,
+  } = usePagination(displayedProducts, 10, `${search}-${statusFilter}`);
   const brandOptions = brands.filter((brand): brand is string => !!brand);
   return (
     <View className="flex-1 bg-gray-50">
@@ -244,12 +254,12 @@ export default function ProductListScreen() {
         </View>
       ) : (
         <FlatList
-          data={displayedProducts}
+          data={paginatedData}
           keyExtractor={(item) => item.ProductID.toString()}
           renderItem={({ item }) => (
             <ProductCard product={item} onDeleted={handleDelete} />
           )}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
+
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
@@ -258,8 +268,26 @@ export default function ProductListScreen() {
               No products found
             </Text>
           }
+
+          contentContainerStyle={{
+            paddingHorizontal: 16,
+            paddingBottom: 100,
+          }}
+
         />
       )}
+
+        {!loading && !error && displayedProducts.length > 0 && (
+              <PaginationBar
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPrev={prevPage}
+                onNext={nextPage}
+                pageSize={pageSize}
+                onPageSizeChange={setPageSize}
+                // pageSizeOptions={[5, 10, 20, 50]} // 👈 optional, this is already the default
+              />
+            )}
 
       <Modal
         visible={showFilter}
