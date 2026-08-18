@@ -1,29 +1,26 @@
 from pydantic import BaseModel
 from typing import Optional
+from datetime import date, datetime
 
 
 class CustomerBase(BaseModel):
 
     CustomerName: str
-
-    Phone: Optional[str] = None
+    Phone: str
     Email: Optional[str] = None
-    Website: Optional[str] = None
 
-    AddressLine1: Optional[str] = None
+    CustomerGroup: str
+
+    DateOfBirth: Optional[date] = None
+    NationalIdTaxId: Optional[str] = None
+
+    AddressLine1: str
     AddressLine2: Optional[str] = None
 
-    City: Optional[str] = None
+    City: str
     StateDivision: Optional[str] = None
     PostalCode: Optional[str] = None
     Country: Optional[str] = "Bangladesh"
-
-    ContactPerson: Optional[str] = None
-    ContactPersonPhone: Optional[str] = None
-
-    TaxVatNo: Optional[str] = None
-
-    CustomerGroup: Optional[str]=None
 
     OpeningBalance: Optional[float] = 0
     CreditLimit: Optional[float] = 0
@@ -45,6 +42,7 @@ class CustomerUpdate(CustomerBase):
 class CustomerOut(CustomerBase):
     CustomerId: int
     CustomerCode: str
+    CreatedAt: Optional[datetime] = None
 
     class Config:
         from_attributes = True

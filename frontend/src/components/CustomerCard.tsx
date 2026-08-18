@@ -152,11 +152,14 @@ export default function CustomerCard({
 
           <Pressable
             className="bg-white border border-gray-100 rounded-md p-2 shadow-sm"
-            // onPress={() =>
-            //   router.push(
-            //     `/customers/view/${customer.CustomerId}`
-            //   )
-            // }
+            onPress={() =>
+              router.push({
+                pathname: "/(tabs)/customers/view/[id]",
+                params: {
+                  id: customer.CustomerId.toString(),
+                },
+              })
+            }
           >
             <Ionicons name="eye-outline" size={16} color="#3B82F6" />
           </Pressable>
@@ -165,11 +168,14 @@ export default function CustomerCard({
 
           <Pressable
             className="bg-white border border-gray-100 rounded-md p-2 shadow-sm"
-            // onPress={() =>
-            //   router.push(
-            //     `/customers/${customer.CustomerId}`
-            //   )
-            // }
+            onPress={() =>
+              router.push({
+                pathname: "/(tabs)/customers/[id]",
+                params: {
+                  id: customer.CustomerId.toString(),
+                },
+              })
+            }
           >
             <Ionicons name="create-outline" size={16} color="#22C55E" />
           </Pressable>

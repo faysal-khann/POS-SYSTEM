@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .routers import suppliers
 from .routers import customers
-
+from .routers import products
 load_dotenv()
 
 app = FastAPI()
@@ -20,6 +20,7 @@ app.add_middleware(
 # Routers
 app.include_router(suppliers.router)
 app.include_router(customers.router)
+app.include_router(products.router)
 
 
 @app.get("/")

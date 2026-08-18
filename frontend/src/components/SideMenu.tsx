@@ -22,13 +22,31 @@ type SideMenuProps = {
 const menuItems = [
   { label: "Dashboard", icon: "home-outline" },
   { label: "POS", icon: "card-outline" },
-  { label: "Products", icon: "cube-outline" },
   { label: "Inventory", icon: "layers-outline" },
   { label: "Purchase", icon: "bag-outline" },
 ];
 
+const productSubItems = [
+  "Product List",
+  "Add Product",
+  "Categories",
+  "Brands",
+  "Units",
+  "Barcode Labels",
+  "Price Update",
+];
 const supplierSubItems = ["Supplier List", "Add Supplier", "Supplier Ledger"];
 const customerSubItems = ["Customer List", "Add Customer", "Customer Ledger", "Loyalty Points"];
+
+const productRoutes: Record<string, string> = {
+  "Product List": "/products",
+  "Add Product": "/products/add",
+  "Categories": "/products/categories",
+  "Brands": "/products/brands",
+  "Units": "/products/units",
+  "Barcode Labels": "/products/barcode-labels",
+  "Price Update": "/products/price-update",
+};
 const supplierRoutes: Record<string, string> = {
   "Supplier List": "/suppliers",
   "Add Supplier": "/suppliers/add",
@@ -41,7 +59,6 @@ const customerRoutes: Record<string, string> = {
   "Loyalty Points": "/customers/loyalty",
 };
 const bottomItems = [
-  { label: "Customers", icon: "people-outline" },
   { label: "Reports", icon: "document-text-outline" },
   { label: "Expenses", icon: "wallet-outline" },
   { label: "Users & Roles", icon: "person-outline" },
@@ -50,8 +67,9 @@ const bottomItems = [
 
 export default function SideMenu({ visible, onClose }: SideMenuProps) {
   const translateX = useRef(new Animated.Value(MENU_WIDTH)).current;
-  const [suppliersOpen, setSuppliersOpen] = useState(true);
-  const [customersOpen, setCustomersOpen] = useState(true);
+  const [productsOpen, setProductsOpen] = useState(true);
+  const [suppliersOpen, setSuppliersOpen] = useState(false);
+  const [customersOpen, setCustomersOpen] = useState(false);
 
   useEffect(() => {
     Animated.timing(translateX, {
@@ -78,7 +96,8 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
           <Text className="text-white font-bold text-lg ml-2">POS SYSTEM</Text>
         </View>
 
-        {menuItems.map((item) => (
+        {/* Dashboard, POS */}
+        {menuItems.slice(0, 2).map((item) => (
           <TouchableOpacity
             key={item.label}
             className="flex-row items-center py-3 px-2 rounded-lg mb-1"
@@ -88,7 +107,53 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
           </TouchableOpacity>
         ))}
 
-        {/* Suppliers - active/expanded */}
+        {/* Products - expandable */}
+        <TouchableOpacity
+          onPress={() => setProductsOpen(!productsOpen)}
+          className="flex-row items-center justify-between py-3 px-2 rounded-lg bg-blue-600 mb-1"
+        >
+          <View className="flex-row items-center">
+            <Ionicons name="cube-outline" size={18} color="#fff" />
+            <Text className="text-white ml-3 text-sm font-medium">
+              Products
+            </Text>
+          </View>
+          <Ionicons
+            name={productsOpen ? "chevron-up" : "chevron-down"}
+            size={14}
+            color="#fff"
+          />
+        </TouchableOpacity>
+
+        {productsOpen &&
+          productSubItems.map((sub) => (
+            <TouchableOpacity
+              key={sub}
+              onPress={() => {
+                onClose();
+                const route = productRoutes[sub];
+                if (route) {
+                  router.push(route as any);
+                }
+              }}
+              className="py-2.5 pl-10 pr-2 rounded-lg mb-1"
+            >
+              <Text className="text-gray-400 text-sm">{sub}</Text>
+            </TouchableOpacity>
+          ))}
+
+        {/* Inventory, Purchase */}
+        {menuItems.slice(2).map((item) => (
+          <TouchableOpacity
+            key={item.label}
+            className="flex-row items-center py-3 px-2 rounded-lg mb-1"
+          >
+            <Ionicons name={item.icon as any} size={18} color="#9CA3AF" />
+            <Text className="text-gray-300 ml-3 text-sm">{item.label}</Text>
+          </TouchableOpacity>
+        ))}
+
+        {/* Suppliers - expandable */}
         <TouchableOpacity
           onPress={() => setSuppliersOpen(!suppliersOpen)}
           className="flex-row items-center justify-between py-3 px-2 rounded-lg bg-blue-600 mb-1"
@@ -108,11 +173,11 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
 
         {suppliersOpen &&
           supplierSubItems.map((sub) => (
-            <TouchableOpacity 
+            <TouchableOpacity
               key={sub}
               onPress={() => {
+                onClose();
                 const route = supplierRoutes[sub];
-
                 if (route) {
                   router.push(route as any);
                 }
@@ -123,8 +188,8 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
             </TouchableOpacity>
           ))}
 
-        {/* Customers - active/expanded */}
-          <TouchableOpacity
+        {/* Customers - expandable */}
+        <TouchableOpacity
           onPress={() => setCustomersOpen(!customersOpen)}
           className="flex-row items-center justify-between py-3 px-2 rounded-lg bg-blue-600 mb-1"
         >
@@ -143,11 +208,11 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
 
         {customersOpen &&
           customerSubItems.map((sub) => (
-            <TouchableOpacity 
+            <TouchableOpacity
               key={sub}
               onPress={() => {
+                onClose();
                 const route = customerRoutes[sub];
-
                 if (route) {
                   router.push(route as any);
                 }
@@ -157,7 +222,7 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
               <Text className="text-gray-400 text-sm">{sub}</Text>
             </TouchableOpacity>
           ))}
-        
+
         {bottomItems.map((item) => (
           <TouchableOpacity
             key={item.label}

@@ -1,7 +1,7 @@
 import axios from "axios";
 
 // Physical device → your PC's local IP
-const API_URL = "http://192.168.0.102:8000";
+const API_URL = "http://192.168.15.243:8000";
 
 export const customerApi = axios.create({
   baseURL: API_URL,
@@ -10,37 +10,41 @@ export const customerApi = axios.create({
   },
 });
 
-
 // ============================================
 // TYPES
 // ============================================
 
 export type CustomerInput = {
   CustomerName: string;
-  Phone?: string;
+  Phone: string;
   Email?: string;
-  CustomerGroup?: string;
-  AddressLine1?: string;
+
+  CustomerGroup: string;
+
+  DateOfBirth?: Date;
+  NationalIdTaxId?: string;
+
+  AddressLine1: string;
   AddressLine2?: string;
-  City?: string;
+  City: string;
   StateDivision?: string;
   PostalCode?: string;
   Country?: string;
-  DateOfBirth?: string;
-  NationalId?: string;
+
   OpeningBalance?: number;
   CreditLimit?: number;
+
   Notes?: string;
+
   Status?: "Active" | "Inactive";
 };
-
 
 export type Customer = CustomerInput & {
   CustomerId: number;
   CustomerCode: string;
   DueAmount?: number;
+  CreatedAt?: string;
 };
-
 
 // ============================================
 // GET ALL CUSTOMERS
@@ -50,7 +54,6 @@ export const getCustomers = async (): Promise<Customer[]> => {
   const res = await customerApi.get("/customers/");
   return res.data;
 };
-
 
 // ============================================
 // GET CUSTOMER BY ID
@@ -64,14 +67,13 @@ export const getCustomerById = async (
   return res.data;
 };
 
-
 // ============================================
 // CREATE CUSTOMER
 // ============================================
 
 export const createCustomer = async (
   data: CustomerInput
-) => {
+): Promise<Customer> => {
   const res = await customerApi.post(
     "/customers/",
     data
@@ -80,7 +82,6 @@ export const createCustomer = async (
   return res.data;
 };
 
-
 // ============================================
 // UPDATE CUSTOMER
 // ============================================
@@ -88,7 +89,7 @@ export const createCustomer = async (
 export const updateCustomer = async (
   id: number,
   data: CustomerInput
-) => {
+): Promise<Customer> => {
   const res = await customerApi.put(
     `/customers/${id}`,
     data
@@ -96,7 +97,6 @@ export const updateCustomer = async (
 
   return res.data;
 };
-
 
 // ============================================
 // DELETE CUSTOMER
@@ -111,7 +111,6 @@ export const deleteCustomer = async (
 
   return res.data;
 };
-
 
 // ============================================
 // GET NEXT CUSTOMER CODE

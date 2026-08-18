@@ -190,11 +190,11 @@ export default function CustomerListScreen() {
         {/* ADD CUSTOMER */}
 
         <TouchableOpacity
-        //   onPress={() =>
-        //     router.push(
-        //       "/(tabs)/customers/add"
-        //     )
-        //   }
+          onPress={() =>
+            router.push(
+              "/(tabs)/customers/add"
+            )
+          }
         >
           <View className="bg-[#3B82F6] rounded-2xl p-2 flex-row">
             <Ionicons name="add" size={16} color="white" />
