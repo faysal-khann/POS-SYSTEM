@@ -4,8 +4,12 @@ from sqlalchemy import func
 from typing import List
 
 from ..database import get_db
-from ..models import Supplier
-from ..schemas import SupplierCreate, SupplierUpdate, SupplierOut
+from ..models.supplier import Supplier
+from ..schemas.supplier import (
+    SupplierCreate,
+    SupplierUpdate,
+    SupplierOut,
+)
 
 router = APIRouter(prefix="/suppliers", tags=["Suppliers"])
 
@@ -19,6 +23,11 @@ def generate_supplier_code(db: Session) -> str:
 def get_suppliers(db: Session = Depends(get_db)):
     return db.query(Supplier).all()
 
+@router.get("/next-code")
+def get_next_supplier_code(db: Session = Depends(get_db)):
+    return {
+        "SupplierCode": generate_supplier_code(db)
+    }
 
 @router.get("/{supplier_id}", response_model=SupplierOut)
 def get_supplier(supplier_id: int, db: Session = Depends(get_db)):
@@ -61,3 +70,4 @@ def delete_supplier(supplier_id: int, db: Session = Depends(get_db)):
     db.delete(db_supplier)
     db.commit()
     return {"message": "Supplier deleted successfully"}
+
