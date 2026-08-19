@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
-
+from typing import List
 
 class LookupOut(BaseModel):
     id: int
@@ -36,7 +36,19 @@ class ProductCreate(ProductBase):
 class ProductUpdate(ProductBase):
     pass
 
+class BulkPriceUpdateRequest(BaseModel):
+    ProductIDs: List[int]
+    UpdateType: str  # "percentage" or "fixed"
+    Value: float
+    PriceField: str = "SalePrice"  # or "PurchasePrice"
 
+
+class BulkPriceUpdateResult(BaseModel):
+    ProductID: int
+    ProductCode: str
+    ProductName: str
+    OldPrice: float
+    NewPrice: float
 class ProductOut(ProductBase):
     ProductID: int
     ProductCode: str

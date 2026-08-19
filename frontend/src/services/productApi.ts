@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://192.168.15.243:8000";
+import { API_URL } from "../config/api";
 
 export const productApi = axios.create({
   baseURL: API_URL,
@@ -52,7 +52,6 @@ export const updateProduct = async (id: number, data: ProductInput) => {
   const res = await productApi.put(`/products/${id}`, data);
   return res.data;
 };
-
 export const deleteProduct = async (productId: number) => {
   const response = await productApi.delete(`/products/${productId}`);
   return response.data;
@@ -68,3 +67,53 @@ export const getUnits = async (): Promise<Lookup[]> =>
 
 export const getNextProductCode = async (): Promise<string> =>
   (await productApi.get("/products/next-code")).data.ProductCode;
+
+
+export type BulkPriceUpdateResult = {
+  ProductID: number;
+  ProductCode: string;
+  ProductName: string;
+  OldPrice: number;
+  NewPrice: number;
+};
+
+export const bulkPriceUpdate = async (
+  productIds: number[],
+  updateType: "percentage" | "fixed",
+  value: number,
+  priceField: "SalePrice" | "PurchasePrice" = "SalePrice"
+): Promise<BulkPriceUpdateResult[]> => {
+  const res = await productApi.post("/products/bulk-price-update", {
+    ProductIDs: productIds,
+    UpdateType: updateType,
+    Value: value,
+    PriceField: priceField,
+  });
+  return res.data;
+};
+
+export const getProductByBarcode = async (barcode: string): Promise<Product> => {
+  const res = await productApi.get(`/products/by-barcode/${barcode}`);
+  return res.data;
+};
+
+export const uploadProductImage = async (uri: string): Promise<string> => {
+  const filename = uri.split("/").pop() || "photo.jpg";
+  const match = /\.(\w+)$/.exec(filename);
+  const type = match ? `image/${match[1]}` : "image/jpeg";
+
+  const formData = new FormData();
+  formData.append("file", {
+    uri,
+    name: filename,
+    type,
+  } as any);
+
+  const res = await productApi.post("/products/upload-image", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+
+  // Prepend the base API URL so the stored value is a full, usable URL
+  return `${API_URL}${res.data.url}`;
+};
+

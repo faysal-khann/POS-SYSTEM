@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+import os
 
 from .routers import suppliers
 from .routers import customers
@@ -28,7 +30,9 @@ app.include_router(products.router)
 app.include_router(units.router)
 app.include_router(brands.router)
 app.include_router(categories.router)
+os.makedirs("uploads/products", exist_ok=True)
 
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 @app.get("/")
 def root():

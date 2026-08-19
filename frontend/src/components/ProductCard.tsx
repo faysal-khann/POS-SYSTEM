@@ -34,7 +34,7 @@ export default function ProductCard({ product, onDeleted }: any) {
       </View>
       <View style={styles.actions}>
         <TouchableOpacity 
-        // onPress={() => router.push(`/products/${product.ProductID}`)}
+        onPress={() => router.push(`/products/${product.ProductID}`)}
         >
           <Ionicons name="create-outline" size={20} color="#2563EB" />
         </TouchableOpacity>

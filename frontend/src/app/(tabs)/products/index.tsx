@@ -143,7 +143,7 @@ export default function ProductListScreen() {
   const categoryOptions = categories.filter(
     (category): category is string => !!category,
   );
-    const {
+  const {
     currentPage,
     totalPages,
     pageSize,
@@ -158,7 +158,7 @@ export default function ProductListScreen() {
       {/* Header */}
       <View className="flex-row items-center justify-between px-4 pt-14 pb-4 bg-white border-b border-gray-200">
         <View className="flex-row items-center">
-           <TouchableOpacity onPress={() => setMenuVisible(true)}>
+          <TouchableOpacity onPress={() => setMenuVisible(true)}>
             <Ionicons name="menu" size={24} color="#111827" />
           </TouchableOpacity>
           <Text className="text-lg font-semibold text-gray-900 ml-3">
@@ -166,15 +166,18 @@ export default function ProductListScreen() {
           </Text>
         </View>
         <View className="flex-row items-center">
-         
-          <TouchableOpacity
-            onPress={() => router.push("/(tabs)/products/add")}
-          >
+          <TouchableOpacity onPress={() => router.push("/(tabs)/products/add")}>
             <View className="bg-[#3B82F6] rounded-2xl p-2 flex-row">
               <Ionicons name="add" size={16} color="white" />
 
               <Text className="text-white font-medium px-2">Add Product</Text>
             </View>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => router.push("/products/scan")}
+            className="bg-gray-100 px-3 py-2 rounded-lg mr-3"
+          >
+            <Ionicons name="barcode-outline" size={18} color="#111827" />
           </TouchableOpacity>
         </View>
       </View>
@@ -273,21 +276,20 @@ export default function ProductListScreen() {
             paddingHorizontal: 16,
             paddingBottom: 100,
           }}
-
         />
       )}
 
-        {!loading && !error && displayedProducts.length > 0 && (
-              <PaginationBar
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPrev={prevPage}
-                onNext={nextPage}
-                pageSize={pageSize}
-                onPageSizeChange={setPageSize}
-                // pageSizeOptions={[5, 10, 20, 50]} // 👈 optional, this is already the default
-              />
-            )}
+      {!loading && !error && displayedProducts.length > 0 && (
+        <PaginationBar
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPrev={prevPage}
+          onNext={nextPage}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
+          // pageSizeOptions={[5, 10, 20, 50]} // 👈 optional, this is already the default
+        />
+      )}
 
       <Modal
         visible={showFilter}
