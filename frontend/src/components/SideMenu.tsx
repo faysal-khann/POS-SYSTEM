@@ -34,6 +34,7 @@ const productSubItems = [
   "Units",
   "Barcode Labels",
   "Price Update",
+  "Bulk Price Update",
 ];
 const supplierSubItems = ["Supplier List", "Add Supplier", "Supplier Ledger"];
 const customerSubItems = ["Customer List", "Add Customer", "Customer Ledger", "Loyalty Points"];
@@ -46,6 +47,7 @@ const productRoutes: Record<string, string> = {
   "Units": "/products/units",
   "Barcode Labels": "/products/barcode-labels",
   "Price Update": "/products/price-update",
+  "Bulk Price Update": "/products/bulk-price-update",
 };
 const supplierRoutes: Record<string, string> = {
   "Supplier List": "/suppliers",

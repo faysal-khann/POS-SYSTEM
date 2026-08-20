@@ -22,10 +22,47 @@ import {
   getNextProductCode,
   Lookup,
   ProductInput,
+  uploadProductImage,
 } from "../../../services/productApi";
 
 import Barcode from "react-native-barcode-svg";
 import { generateEAN13 } from "../../../utils/barcode";
+import { getFullImageUrl } from "../../../services/productApi";
+
+// ---- Moved outside the screen component so it has a stable identity ----
+type InputProps = {
+  label: string;
+  value: string;
+  onChangeText: (v: string) => void;
+  placeholder: string;
+  keyboardType?: "default" | "numeric" | "phone-pad";
+  required?: boolean;
+};
+
+function Input({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  keyboardType = "default",
+  required,
+}: InputProps) {
+  return (
+    <View className="mb-4">
+      <Text className="text-sm font-medium text-gray-700 mb-1.5">
+        {label} {required && <Text className="text-red-500">*</Text>}
+      </Text>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor="#9CA3AF"
+        keyboardType={keyboardType}
+        className="border border-gray-200 rounded-xl px-3 py-3 text-sm text-gray-800 bg-white"
+      />
+    </View>
+  );
+}
 
 export default function AddProductScreen() {
   const [productCode, setProductCode] = useState("");
@@ -75,28 +112,6 @@ export default function AddProductScreen() {
     })();
   }, []);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const [cats, brs, uns, code] = await Promise.all([
-          getCategories(),
-          getBrands(),
-          getUnits(),
-          getNextProductCode(),
-        ]);
-        setCategories(cats);
-        setBrands(brs);
-        setUnits(uns);
-        setProductCode(code);
-      } catch (err) {
-        console.error(err);
-        Alert.alert("Error", "Couldn't load categories/brands/units.");
-      } finally {
-        setLoadingLookups(false);
-      }
-    })();
-  }, []);
-
   const update = (key: keyof ProductInput, value: any) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
@@ -121,8 +136,24 @@ export default function AddProductScreen() {
     });
 
     if (!result.canceled) {
-      setImageUri(result.assets[0].uri);
-      update("ImageUrl", result.assets[0].uri);
+      const localUri = result.assets[0].uri;
+      setImageUri(localUri); // show local preview immediately
+
+      try {
+        setUploading(true);
+        const uploadedUrl = await uploadProductImage(localUri);
+        update("ImageUrl", uploadedUrl); // real server URL saved into form
+      } catch (err) {
+        console.error(err);
+        Alert.alert(
+          "Upload failed",
+          "Couldn't upload image. Please try again.",
+        );
+        setImageUri(null);
+        update("ImageUrl", "");
+      } finally {
+        setUploading(false);
+      }
     }
   };
 
@@ -158,36 +189,6 @@ export default function AddProductScreen() {
       setSaving(false);
     }
   };
-
-  const Input = ({
-    label,
-    value,
-    onChangeText,
-    placeholder,
-    keyboardType = "default",
-    required,
-  }: {
-    label: string;
-    value: string;
-    onChangeText: (v: string) => void;
-    placeholder: string;
-    keyboardType?: "default" | "numeric" | "phone-pad";
-    required?: boolean;
-  }) => (
-    <View className="mb-4">
-      <Text className="text-sm font-medium text-gray-700 mb-1.5">
-        {label} {required && <Text className="text-red-500">*</Text>}
-      </Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor="#9CA3AF"
-        keyboardType={keyboardType}
-        className="border border-gray-200 rounded-xl px-3 py-3 text-sm text-gray-800 bg-white"
-      />
-    </View>
-  );
 
   if (loadingLookups) {
     return (
@@ -371,6 +372,11 @@ export default function AddProductScreen() {
                 source={{ uri: imageUri }}
                 className="w-28 h-28 rounded-xl"
               />
+              {uploading && (
+                <View className="absolute inset-0 bg-black/40 rounded-xl items-center justify-center">
+                  <ActivityIndicator color="#fff" />
+                </View>
+              )}
               <TouchableOpacity
                 onPress={removeImage}
                 className="absolute -top-2 -right-2 bg-red-500 rounded-full p-1"

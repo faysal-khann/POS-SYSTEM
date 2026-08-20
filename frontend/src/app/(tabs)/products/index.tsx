@@ -10,8 +10,9 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  Alert,
 } from "react-native";
-import { Picker } from "@react-native-picker/picker";
+import { useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import ProductCard from "../../../components/ProductCard";
@@ -24,6 +25,20 @@ import {
 import { usePagination } from "../../../hooks/usePagination";
 import PaginationBar from "../../../components/PaginationBar";
 import Dropdown from "../../../components/Dropdown";
+
+// Sentinel ids used for the "All ..." option in each dropdown
+const ALL_CATEGORY_ID = -1;
+const ALL_BRAND_ID = -1;
+
+const STATUS_ALL = 0;
+const STATUS_ACTIVE = 1;
+const STATUS_INACTIVE = 2;
+
+const statusIdToValue: Record<number, "All" | "Active" | "Inactive"> = {
+  [STATUS_ALL]: "All",
+  [STATUS_ACTIVE]: "Active",
+  [STATUS_INACTIVE]: "Inactive",
+};
 
 export default function ProductListScreen() {
   const [menuVisible, setMenuVisible] = useState(false);
@@ -43,43 +58,80 @@ export default function ProductListScreen() {
   // FILTER
   // ============================================
 
-  type StatusFilter = "All" | "Active" | "Inactive";
+  const [statusFilterId, setStatusFilterId] = useState<number>(STATUS_ALL);
 
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
+  const [categoryFilterId, setCategoryFilterId] =
+    useState<number>(ALL_CATEGORY_ID);
 
-  const [categoryFilter, setCategoryFilter] = useState<string>("All");
-
-  const [brandFilter, setBrandFilter] = useState<string>("All");
+  const [brandFilterId, setBrandFilterId] = useState<number>(ALL_BRAND_ID);
 
   const [showFilter, setShowFilter] = useState(false);
 
   const handleDelete = async (id: number) => {
-    try {
-      await deleteProduct(id);
+  Alert.alert(
+    "Delete Product",
+    "Are you sure you want to delete this product?",
+    [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await deleteProduct(id);
 
-      setProducts((prev) => prev.filter((p) => p.ProductID !== id));
-    } catch (err) {
-      console.error("Delete product error:", err);
-      setError("Failed to delete product.");
-    }
-  };
+            setProducts((prev) =>
+              prev.filter((p) => p.ProductID !== id)
+            );
+          } catch (err) {
+            console.error("Delete product error:", err);
+            setError("Failed to delete product.");
+          }
+        },
+      },
+    ]
+  );
+};
 
   // ============================================
-  // CATEGORIES & BRANDS
+  // CATEGORIES & BRANDS (unique id + name pairs from loaded products)
   // ============================================
 
-  const categories = [
-    "All",
+  const categoryDropdownOptions = [
+    { id: ALL_CATEGORY_ID, name: "All Categories" },
     ...Array.from(
-      new Set(products.map((product) => product.categoryName).filter(Boolean)),
+      new Map(
+        products
+          .filter((p) => p.CategoryID != null)
+          .map((p) => [
+            p.CategoryID,
+            { id: p.CategoryID, name: p.categoryName ?? `#${p.CategoryID}` },
+          ]),
+      ).values(),
     ),
   ];
 
-  const brands = [
-    "All",
+  const brandDropdownOptions = [
+    { id: ALL_BRAND_ID, name: "All Brands" },
     ...Array.from(
-      new Set(products.map((product) => product.brandName).filter(Boolean)),
+      new Map(
+        products
+          .filter((p) => p.BrandID != null)
+          .map((p) => [
+            p.BrandID,
+            { id: p.BrandID as number, name: p.brandName ?? `#${p.BrandID}` },
+          ]),
+      ).values(),
     ),
+  ];
+
+  const statusDropdownOptions = [
+    { id: STATUS_ALL, name: "All Status" },
+    { id: STATUS_ACTIVE, name: "Active" },
+    { id: STATUS_INACTIVE, name: "Inactive" },
   ];
 
   const fetchProducts = useCallback(async () => {
@@ -96,9 +148,11 @@ export default function ProductListScreen() {
     }
   }, []);
 
-  useEffect(() => {
+useFocusEffect(
+  useCallback(() => {
     fetchProducts();
-  }, [fetchProducts]);
+  }, [fetchProducts]) // ✅
+);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -108,6 +162,8 @@ export default function ProductListScreen() {
   // ============================================
   // FILTER PRODUCTS
   // ============================================
+
+  const statusFilterValue = statusIdToValue[statusFilterId];
 
   const filteredProducts = products.filter((product) => {
     const searchText = search.toLowerCase();
@@ -119,13 +175,14 @@ export default function ProductListScreen() {
       product.brandName?.toLowerCase().includes(searchText);
 
     const matchesStatus =
-      statusFilter === "All" || product.Status === statusFilter;
+      statusFilterValue === "All" || product.Status === statusFilterValue;
 
     const matchesCategory =
-      categoryFilter === "All" || product.categoryName === categoryFilter;
+      categoryFilterId === ALL_CATEGORY_ID ||
+      product.CategoryID === categoryFilterId;
 
     const matchesBrand =
-      brandFilter === "All" || product.brandName === brandFilter;
+      brandFilterId === ALL_BRAND_ID || product.BrandID === brandFilterId;
 
     return matchesSearch && matchesStatus && matchesCategory && matchesBrand;
   });
@@ -140,9 +197,6 @@ export default function ProductListScreen() {
       )
     : filteredProducts;
 
-  const categoryOptions = categories.filter(
-    (category): category is string => !!category,
-  );
   const {
     currentPage,
     totalPages,
@@ -151,8 +205,13 @@ export default function ProductListScreen() {
     paginatedData,
     nextPage,
     prevPage,
-  } = usePagination(displayedProducts, 10, `${search}-${statusFilter}`);
-  const brandOptions = brands.filter((brand): brand is string => !!brand);
+  } = usePagination(displayedProducts, 10, `${search}-${statusFilterId}`);
+
+  const hasActiveFilters =
+    statusFilterId !== STATUS_ALL ||
+    categoryFilterId !== ALL_CATEGORY_ID ||
+    brandFilterId !== ALL_BRAND_ID;
+
   return (
     <View className="flex-1 bg-gray-50">
       {/* Header */}
@@ -197,23 +256,13 @@ export default function ProductListScreen() {
         <TouchableOpacity
           onPress={() => setShowFilter(true)}
           className={`bg-white border rounded-xl p-2.5 ${
-            statusFilter !== "All" ||
-            categoryFilter !== "All" ||
-            brandFilter !== "All"
-              ? "border-blue-500"
-              : "border-gray-200"
+            hasActiveFilters ? "border-blue-500" : "border-gray-200"
           }`}
         >
           <Ionicons
             name="filter"
             size={16}
-            color={
-              statusFilter !== "All" ||
-              categoryFilter !== "All" ||
-              brandFilter !== "All"
-                ? "#3B82F6"
-                : "#374151"
-            }
+            color={hasActiveFilters ? "#3B82F6" : "#374151"}
           />
         </TouchableOpacity>
       </View>
@@ -322,72 +371,31 @@ export default function ProductListScreen() {
 
             <ScrollView showsVerticalScrollIndicator={false}>
               {/* CATEGORY */}
-              <Text className="text-sm font-medium text-gray-700 mb-2">
-                Category
-              </Text>
-
-              <View className="border border-gray-200 rounded-xl mb-4 overflow-hidden">
-                <Picker
-                  selectedValue={categoryFilter}
-                  onValueChange={(value) => setCategoryFilter(value)}
-                >
-                  {categories.map((category) => (
-                    <Picker.Item
-                      key={category ?? "All"}
-                      label={
-                        category === "All"
-                          ? "All Categories"
-                          : (category ?? "Unknown")
-                      }
-                      value={category ?? "All"}
-                      color="#111827"
-                    />
-                  ))}
-                </Picker>
-              </View>
+              <Dropdown
+                label="Category"
+                placeholder="Select category"
+                options={categoryDropdownOptions}
+                selectedId={categoryFilterId}
+                onSelect={setCategoryFilterId}
+              />
 
               {/* BRAND */}
-              <Text className="text-sm font-medium text-gray-700 mb-2">
-                Brand
-              </Text>
-
-              <View className="border border-gray-200 rounded-xl mb-4 overflow-hidden">
-                <Picker
-                  selectedValue={brandFilter}
-                  onValueChange={(value) => setBrandFilter(value)}
-                >
-                  {brands.map((brand) => (
-                    <Picker.Item
-                      key={brand ?? "All"}
-                      label={
-                        brand === "All" ? "All Brands" : (brand ?? "Unknown")
-                      }
-                      value={brand ?? "All"}
-                      color="#111827"
-                    />
-                  ))}
-                </Picker>
-              </View>
+              <Dropdown
+                label="Brand"
+                placeholder="Select brand"
+                options={brandDropdownOptions}
+                selectedId={brandFilterId}
+                onSelect={setBrandFilterId}
+              />
 
               {/* STATUS */}
-              <Text className="text-sm font-medium text-gray-700 mb-2">
-                Status
-              </Text>
-
-              <View className="border border-gray-200 rounded-xl mb-4 overflow-hidden">
-                <Picker
-                  selectedValue={statusFilter}
-                  onValueChange={(value) => setStatusFilter(value)}
-                >
-                  <Picker.Item label="All Status" value="All" color="#111827" />
-                  <Picker.Item label="Active" value="Active" color="#111827" />
-                  <Picker.Item
-                    label="Inactive"
-                    value="Inactive"
-                    color="#111827"
-                  />
-                </Picker>
-              </View>
+              <Dropdown
+                label="Status"
+                placeholder="Select status"
+                options={statusDropdownOptions}
+                selectedId={statusFilterId}
+                onSelect={setStatusFilterId}
+              />
 
               {/* APPLY */}
               <TouchableOpacity
@@ -398,14 +406,12 @@ export default function ProductListScreen() {
               </TouchableOpacity>
 
               {/* CLEAR */}
-              {(statusFilter !== "All" ||
-                categoryFilter !== "All" ||
-                brandFilter !== "All") && (
+              {hasActiveFilters && (
                 <TouchableOpacity
                   onPress={() => {
-                    setStatusFilter("All");
-                    setCategoryFilter("All");
-                    setBrandFilter("All");
+                    setStatusFilterId(STATUS_ALL);
+                    setCategoryFilterId(ALL_CATEGORY_ID);
+                    setBrandFilterId(ALL_BRAND_ID);
                   }}
                   className="items-center mt-3"
                 >

@@ -100,8 +100,8 @@ export default function BarcodeLabelsScreen() {
       for (const product of selected) {
         const ref = viewShotRefs.current[product.ProductID];
         if (ref) {
-          const uri = await ref.capture!();
-          labelImages.push(uri);
+          const base64 = await ref.capture!();
+          labelImages.push(`data:image/png;base64,${base64}`);
         }
       }
 
@@ -249,7 +249,7 @@ export default function BarcodeLabelsScreen() {
                   ref={(r) => {
                     viewShotRefs.current[product.ProductID] = r;
                   }}
-                  options={{ format: "png", quality: 1 }}
+                  options={{ format: "png", quality: 1, result: "base64" }}
                 >
                   <View className="bg-white items-center py-3 px-2">
                     {showName && (

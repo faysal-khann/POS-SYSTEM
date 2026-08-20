@@ -22,7 +22,41 @@ import {
   getUnits,
   Lookup,
   ProductInput,
+  uploadProductImage,
 } from "../../../services/productApi";
+
+import Barcode from "react-native-barcode-svg";
+import { generateEAN13 } from "../../../utils/barcode";
+import { getFullImageUrl } from "../../../services/productApi";
+const Input = ({
+    label,
+    value,
+    onChangeText,
+    placeholder,
+    keyboardType = "default",
+    required,
+  }: {
+    label: string;
+    value: string;
+    onChangeText: (v: string) => void;
+    placeholder: string;
+    keyboardType?: "default" | "numeric" | "phone-pad";
+    required?: boolean;
+  }) => (
+    <View className="mb-4">
+      <Text className="text-sm font-medium text-gray-700 mb-1.5">
+        {label} {required && <Text className="text-red-500">*</Text>}
+      </Text>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor="#9CA3AF"
+        keyboardType={keyboardType}
+        className="border border-gray-200 rounded-xl px-3 py-3 text-sm text-gray-800 bg-white"
+      />
+    </View>
+  );
 
 export default function EditProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -68,6 +102,7 @@ export default function EditProductScreen() {
         setBrands(brs);
         setUnits(uns);
         setProductCode(product.ProductCode);
+        update("Barcode", generateEAN13()); // ← auto-generate barcode
 
         setForm({
           ProductName: product.ProductName,
@@ -101,25 +136,40 @@ export default function EditProductScreen() {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const pickImage = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert("Permission needed", "Allow photo access to change the product image.");
-      return;
-    }
+ const [uploading, setUploading] = useState(false);
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.7,
-      allowsEditing: true,
-      aspect: [1, 1],
-    });
+const pickImage = async () => {
+  const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (!permission.granted) {
+    Alert.alert("Permission needed", "Allow photo access to add a product image.");
+    return;
+  }
 
-    if (!result.canceled) {
-      setImageUri(result.assets[0].uri);
-      update("ImageUrl", result.assets[0].uri);
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    quality: 0.7,
+    allowsEditing: true,
+    aspect: [1, 1],
+  });
+
+  if (!result.canceled) {
+    const localUri = result.assets[0].uri;
+    setImageUri(localUri); // show local preview immediately
+
+    try {
+      setUploading(true);
+      const uploadedUrl = await uploadProductImage(localUri);
+      update("ImageUrl", uploadedUrl); // real server URL saved into form
+    } catch (err) {
+      console.error(err);
+      Alert.alert("Upload failed", "Couldn't upload image. Please try again.");
+      setImageUri(null);
+      update("ImageUrl", "");
+    } finally {
+      setUploading(false);
     }
-  };
+  }
+};
 
   const removeImage = () => {
     setImageUri(null);
@@ -154,35 +204,7 @@ export default function EditProductScreen() {
     }
   };
 
-  const Input = ({
-    label,
-    value,
-    onChangeText,
-    placeholder,
-    keyboardType = "default",
-    required,
-  }: {
-    label: string;
-    value: string;
-    onChangeText: (v: string) => void;
-    placeholder: string;
-    keyboardType?: "default" | "numeric" | "phone-pad";
-    required?: boolean;
-  }) => (
-    <View className="mb-4">
-      <Text className="text-sm font-medium text-gray-700 mb-1.5">
-        {label} {required && <Text className="text-red-500">*</Text>}
-      </Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor="#9CA3AF"
-        keyboardType={keyboardType}
-        className="border border-gray-200 rounded-xl px-3 py-3 text-sm text-gray-800 bg-white"
-      />
-    </View>
-  );
+  
 
   if (loading) {
     return (
@@ -245,13 +267,46 @@ export default function EditProductScreen() {
           onChangeText={(v) => update("ProductName", v)}
           placeholder="Enter product name"
         />
-        <Input
-          label="Barcode"
-          value={form.Barcode ?? ""}
-          onChangeText={(v) => update("Barcode", v)}
-          placeholder="Enter barcode"
-          keyboardType="numeric"
-        />
+         <View className="mb-4">
+          <View className="flex-row items-center justify-between mb-1.5">
+            <Text className="text-sm font-medium text-gray-700">Barcode</Text>
+            <TouchableOpacity
+              onPress={() => update("Barcode", generateEAN13())}
+            >
+              <Text className="text-xs text-blue-600 font-medium">
+                Regenerate
+              </Text>
+            </TouchableOpacity>
+          </View>
+          <TextInput
+            value={form.Barcode ?? ""}
+            onChangeText={(v) => update("Barcode", v)}
+            placeholder="Auto-generated"
+            placeholderTextColor="#9CA3AF"
+            keyboardType="numeric"
+            className="border border-gray-200 rounded-xl px-3 py-3 text-sm text-gray-800 bg-white mb-3"
+          />
+
+          {form.Barcode && /^\d{13}$/.test(form.Barcode) ? (
+            <View className="items-center bg-white border border-gray-200 rounded-xl py-3">
+              <Barcode
+                value={form.Barcode}
+                format="EAN13"
+                singleBarWidth={2}
+                height={60}
+                maxWidth={220}
+                lineColor="#000000"
+                backgroundColor="#FFFFFF"
+              />
+            </View>
+          ) : (
+            <View className="items-center bg-gray-50 border border-gray-200 rounded-xl py-6">
+              <Text className="text-xs text-gray-400">
+                Barcode preview will appear here
+              </Text>
+            </View>
+          )}
+        </View>
 
         <Dropdown
           label="Category"
@@ -319,7 +374,7 @@ export default function EditProductScreen() {
 
           {imageUri ? (
             <View className="relative w-28 h-28">
-              <Image source={{ uri: imageUri }} className="w-28 h-28 rounded-xl" />
+              <Image source={{ uri: getFullImageUrl(imageUri) }} className="w-28 h-28 rounded-xl" />
               <TouchableOpacity
                 onPress={removeImage}
                 className="absolute -top-2 -right-2 bg-red-500 rounded-full p-1"

@@ -1,299 +1,377 @@
-import { useState, useEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
   Text,
   TextInput,
   TouchableOpacity,
-  FlatList,
-  ActivityIndicator,
-  Alert,
-  Modal,
-  Pressable,
+  View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
+
 import {
   getProducts,
   getCategories,
   getBrands,
-  bulkPriceUpdate,
   Product,
   Lookup,
+  updateProductPrice,
 } from "../../../services/productApi";
-
-type UpdateType = "percentage" | "fixed";
 
 export default function PriceUpdateScreen() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Lookup[]>([]);
   const [brands, setBrands] = useState<Lookup[]>([]);
+
   const [loading, setLoading] = useState(true);
 
+  const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<number | "All">("All");
   const [brandFilter, setBrandFilter] = useState<number | "All">("All");
-  const [updateType, setUpdateType] = useState<UpdateType>("percentage");
-  const [value, setValue] = useState("5");
 
+  const [filterModal, setFilterModal] = useState<"category" | "brand" | null>(
+    null,
+  );
+
+  // ---- Multi-select state (always on, no toggle) ----
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [filterModal, setFilterModal] = useState<"category" | "brand" | "type" | null>(null);
-  const [applying, setApplying] = useState(false);
+  const [bulkEditVisible, setBulkEditVisible] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const [prods, cats, brs] = await Promise.all([
-          getProducts(),
-          getCategories(),
-          getBrands(),
-        ]);
-        setProducts(prods);
-        setCategories(cats);
-        setBrands(brs);
-      } catch (err) {
-        console.error(err);
-        Alert.alert("Error", "Couldn't load products.");
-      } finally {
-        setLoading(false);
-      }
-    })();
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+
+      const [prods, cats, brs] = await Promise.all([
+        getProducts(),
+        getCategories(),
+        getBrands(),
+      ]);
+
+      setProducts(prods);
+      setCategories(cats);
+      setBrands(brs);
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Error", "Couldn't load products.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const numericValue = parseFloat(value) || 0;
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [fetchData]),
+  );
 
+  // Search + filters
   const filteredProducts = useMemo(() => {
-    return products.filter((p) => {
-      const matchesCategory = categoryFilter === "All" || p.CategoryID === categoryFilter;
-      const matchesBrand = brandFilter === "All" || p.BrandID === brandFilter;
-      return matchesCategory && matchesBrand;
-    });
-  }, [products, categoryFilter, brandFilter]);
+    const searchText = search.trim().toLowerCase();
 
-  const computeNewPrice = (currentPrice: number) => {
-    if (updateType === "percentage") {
-      return currentPrice * (1 + numericValue / 100);
-    }
-    return currentPrice + numericValue;
+    return products.filter((product) => {
+      const matchesSearch =
+        !searchText ||
+        product.ProductName?.toLowerCase().includes(searchText) ||
+        product.ProductCode?.toLowerCase().includes(searchText) ||
+        product.Barcode?.toLowerCase().includes(searchText);
+
+      const matchesCategory =
+        categoryFilter === "All" || product.CategoryID === categoryFilter;
+
+      const matchesBrand =
+        brandFilter === "All" || product.BrandID === brandFilter;
+
+      return matchesSearch && matchesCategory && matchesBrand;
+    });
+  }, [products, search, categoryFilter, brandFilter]);
+
+  const categoryName = (id: number) => {
+    return categories.find((item) => item.id === id)?.name ?? "All";
   };
 
-  const toggleSelect = (id: number) => {
+  const brandName = (id: number) => {
+    return brands.find((item) => item.id === id)?.name ?? "All";
+  };
+
+  // ---- Selection helpers ----
+
+  const allFilteredSelected =
+    filteredProducts.length > 0 &&
+    filteredProducts.every((p) => selectedIds.has(p.ProductID));
+
+  const toggleSelectProduct = (id: number) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
       return next;
     });
   };
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === filteredProducts.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(filteredProducts.map((p) => p.ProductID)));
-    }
+    setSelectedIds((prev) => {
+      if (allFilteredSelected) {
+        // deselect only the currently visible ones
+        const next = new Set(prev);
+        filteredProducts.forEach((p) => next.delete(p.ProductID));
+        return next;
+      }
+
+      const next = new Set(prev);
+      filteredProducts.forEach((p) => next.add(p.ProductID));
+      return next;
+    });
   };
 
-  const handleApply = async () => {
-    if (selectedIds.size === 0) {
-      Alert.alert("No products selected", "Select at least one product to update.");
-      return;
-    }
-    if (numericValue === 0) {
-      Alert.alert("Invalid value", "Enter a non-zero value.");
-      return;
-    }
+  const selectedProducts = useMemo(
+    () => products.filter((p) => selectedIds.has(p.ProductID)),
+    [products, selectedIds],
+  );
 
-    Alert.alert(
-      "Apply Price Update",
-      `Update price for ${selectedIds.size} product(s) by ${
-        updateType === "percentage" ? `${numericValue}%` : `৳${numericValue}`
-      }?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Apply",
-          onPress: async () => {
-            try {
-              setApplying(true);
-              const results = await bulkPriceUpdate(
-                Array.from(selectedIds),
-                updateType,
-                numericValue,
-                "SalePrice"
-              );
-              setProducts((prev) =>
-                prev.map((p) => {
-                  const updated = results.find((r) => r.ProductID === p.ProductID);
-                  return updated ? { ...p, SalePrice: updated.NewPrice } : p;
-                })
-              );
-              setSelectedIds(new Set());
-              Alert.alert("Success", `Updated ${results.length} product(s).`);
-            } catch (err) {
-              console.error(err);
-              Alert.alert("Error", "Couldn't apply price update.");
-            } finally {
-              setApplying(false);
-            }
-          },
-        },
-      ]
-    );
+  const handleCardPress = (product: Product) => {
+    toggleSelectProduct(product.ProductID);
   };
-
-  const categoryName = (id: number) => categories.find((c) => c.id === id)?.name ?? "—";
 
   if (loading) {
     return (
-      <View className="flex-1 items-center justify-center bg-gray-50">
-        <ActivityIndicator size="large" color="#3B82F6" />
+      <View className="flex-1 bg-gray-50 items-center justify-center">
+        <ActivityIndicator size="large" color="#16A34A" />
+
+        <Text className="text-gray-500 mt-3">Loading products...</Text>
       </View>
     );
   }
 
   return (
     <View className="flex-1 bg-gray-50">
-      {/* Header */}
-      <View className="flex-row items-center justify-between px-4 pt-14 pb-4 bg-white border-b border-gray-200">
+      {/* HEADER */}
+      <View className="bg-white px-4 pt-14 pb-4 border-b border-gray-200">
         <View className="flex-row items-center">
-          <TouchableOpacity onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={22} color="#111827" />
+          <TouchableOpacity onPress={() => router.back()} className="mr-3">
+            <Ionicons name="arrow-back" size={23} color="#111827" />
           </TouchableOpacity>
-          <Text className="text-lg font-semibold text-gray-900 ml-3">Price Update</Text>
-        </View>
-        <TouchableOpacity
-          onPress={handleApply}
-          disabled={applying}
-          className="bg-green-600 px-4 py-2 rounded-lg flex-row items-center"
-        >
-          {applying ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <Text className="text-white text-sm font-medium">Apply Update</Text>
-          )}
-        </TouchableOpacity>
-      </View>
 
-      {/* Filters */}
-      <View className="px-4 pt-4">
-        <View className="flex-row mb-3">
-          <TouchableOpacity
-            onPress={() => setFilterModal("category")}
-            className="flex-1 flex-row items-center justify-between border border-gray-200 rounded-xl px-3 py-2.5 bg-white mr-2"
-          >
-            <Text className="text-xs text-gray-600" numberOfLines={1}>
-              {categoryFilter === "All"
-                ? "All Categories"
-                : categoryName(categoryFilter as number)}
+          <View>
+            <Text className="text-xl font-bold text-gray-900">
+              Price Update
             </Text>
-            <Ionicons name="chevron-down" size={14} color="#9CA3AF" />
-          </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={() => setFilterModal("brand")}
-            className="flex-1 flex-row items-center justify-between border border-gray-200 rounded-xl px-3 py-2.5 bg-white"
-          >
-            <Text className="text-xs text-gray-600" numberOfLines={1}>
-              {brandFilter === "All"
-                ? "All Brands"
-                : brands.find((b) => b.id === brandFilter)?.name ?? "—"}
-            </Text>
-            <Ionicons name="chevron-down" size={14} color="#9CA3AF" />
-          </TouchableOpacity>
-        </View>
-
-        <View className="flex-row mb-4">
-          <TouchableOpacity
-            onPress={() => setFilterModal("type")}
-            className="flex-1 flex-row items-center justify-between border border-gray-200 rounded-xl px-3 py-2.5 bg-white mr-2"
-          >
-            <Text className="text-xs text-gray-600">
-              {updateType === "percentage" ? "Percentage (%)" : "Fixed Amount (৳)"}
-            </Text>
-            <Ionicons name="chevron-down" size={14} color="#9CA3AF" />
-          </TouchableOpacity>
-
-          <View className="flex-1 flex-row items-center border border-gray-200 rounded-xl px-3 py-2.5 bg-white">
-            <TextInput
-              value={value}
-              onChangeText={setValue}
-              keyboardType="numeric"
-              placeholder="0"
-              className="flex-1 text-sm text-gray-800"
-            />
-            <Text className="text-xs text-gray-400">
-              {updateType === "percentage" ? "%" : "৳"}
+            <Text className="text-xs text-gray-500 mt-1">
+              Update product prices individually
             </Text>
           </View>
         </View>
       </View>
 
-      {/* Select all + count */}
-      <View className="flex-row items-center justify-between px-4 mb-2">
-        <TouchableOpacity onPress={toggleSelectAll} className="flex-row items-center">
-          <Ionicons
-            name={
-              selectedIds.size === filteredProducts.length && filteredProducts.length > 0
-                ? "checkbox"
-                : "square-outline"
-            }
-            size={18}
-            color="#3B82F6"
+      {/* SEARCH */}
+      <View className="px-4 pt-4">
+        <View className="flex-row items-center bg-white border border-gray-200 rounded-xl px-3">
+          <Ionicons name="search-outline" size={20} color="#9CA3AF" />
+
+          <TextInput
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search product, code or barcode..."
+            placeholderTextColor="#9CA3AF"
+            className="flex-1 px-3 py-3 text-gray-900"
           />
-          <Text className="text-sm text-gray-600 ml-2">Select all</Text>
-        </TouchableOpacity>
-        <Text className="text-xs text-gray-400">
-          {filteredProducts.length} products · {selectedIds.size} selected
-        </Text>
+
+          {search.length > 0 && (
+            <TouchableOpacity onPress={() => setSearch("")}>
+              <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
-      {/* List */}
+      {/* FILTERS */}
+      <View className="flex-row px-4 pt-3 pb-3">
+        {/* Category */}
+        <TouchableOpacity
+          onPress={() => setFilterModal("category")}
+          className="flex-1 bg-white border border-gray-200 rounded-xl px-3 py-3 mr-2"
+        >
+          <Text className="text-xs text-gray-400">Category</Text>
+
+          <View className="flex-row items-center justify-between mt-1">
+            <Text className="text-sm text-gray-800" numberOfLines={1}>
+              {categoryFilter === "All"
+                ? "All Categories"
+                : categoryName(categoryFilter)}
+            </Text>
+
+            <Ionicons name="chevron-down" size={16} color="#6B7280" />
+          </View>
+        </TouchableOpacity>
+
+        {/* Brand */}
+        <TouchableOpacity
+          onPress={() => setFilterModal("brand")}
+          className="flex-1 bg-white border border-gray-200 rounded-xl px-3 py-3 ml-2"
+        >
+          <Text className="text-xs text-gray-400">Brand</Text>
+
+          <View className="flex-row items-center justify-between mt-1">
+            <Text className="text-sm text-gray-800" numberOfLines={1}>
+              {brandFilter === "All" ? "All Brands" : brandName(brandFilter)}
+            </Text>
+
+            <Ionicons name="chevron-down" size={16} color="#6B7280" />
+          </View>
+        </TouchableOpacity>
+      </View>
+
+      {/* RESULT COUNT / SELECT ALL */}
+      <View className="px-4 pb-2 flex-row items-center justify-between">
+        <Text className="text-xs text-gray-500">
+          {filteredProducts.length} product
+          {filteredProducts.length !== 1 ? "s" : ""}
+          {selectedIds.size > 0 ? ` · ${selectedIds.size} selected` : ""}
+        </Text>
+
+        {filteredProducts.length > 0 && (
+          <TouchableOpacity
+            onPress={toggleSelectAll}
+            className="flex-row items-center"
+          >
+            <Ionicons
+              name={allFilteredSelected ? "checkbox" : "square-outline"}
+              size={18}
+              color={allFilteredSelected ? "#16A34A" : "#9CA3AF"}
+            />
+
+            <Text className="text-xs font-semibold text-gray-700 ml-1.5">
+              {allFilteredSelected ? "Deselect All" : "Select All"}
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* PRODUCT LIST */}
       <FlatList
         data={filteredProducts}
-        keyExtractor={(item) => item.ProductID.toString()}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
+        keyExtractor={(item) => String(item.ProductID)}
+        contentContainerStyle={{
+          paddingHorizontal: 16,
+          paddingBottom: selectedIds.size > 0 ? 110 : 40,
+        }}
+        showsVerticalScrollIndicator={false}
         renderItem={({ item }) => {
           const isSelected = selectedIds.has(item.ProductID);
-          const currentPrice = Number(item.SalePrice ?? 0);
-          const newPrice = computeNewPrice(currentPrice);
-          const changed = isSelected && numericValue !== 0;
 
           return (
             <TouchableOpacity
-              onPress={() => toggleSelect(item.ProductID)}
-              className={`flex-row items-center bg-white border rounded-xl p-3 mb-2 ${
-                isSelected ? "border-blue-400" : "border-gray-200"
+              activeOpacity={0.6}
+              onPress={() => handleCardPress(item)}
+              className={`bg-white rounded-2xl border p-4 mb-3 ${
+                isSelected ? "border-green-500 bg-green-50" : "border-gray-100"
               }`}
             >
-              <Ionicons
-                name={isSelected ? "checkbox" : "square-outline"}
-                size={20}
-                color={isSelected ? "#3B82F6" : "#D1D5DB"}
-              />
-              <View className="flex-1 ml-3">
-                <Text className="text-sm font-medium text-gray-900">{item.ProductName}</Text>
-                <Text className="text-xs text-gray-400">
-                  {item.ProductCode} · {categoryName(item.CategoryID)}
-                </Text>
+              {/* Product top */}
+              <View className="flex-row justify-between">
+                <View className="flex-row flex-1 pr-3">
+                  <View className="mr-3 pt-0.5">
+                    <Ionicons
+                      name={isSelected ? "checkbox" : "square-outline"}
+                      size={22}
+                      color={isSelected ? "#16A34A" : "#9CA3AF"}
+                    />
+                  </View>
+
+                  <View className="flex-1">
+                    <Text
+                      className="text-base font-semibold text-gray-900"
+                      numberOfLines={2}
+                    >
+                      {item.ProductName}
+                    </Text>
+
+                    <Text className="text-xs text-gray-500 mt-1">
+                      Code: {item.ProductCode}
+                    </Text>
+
+                    {item.Barcode && (
+                      <Text className="text-xs text-gray-400 mt-1">
+                        Barcode: {item.Barcode}
+                      </Text>
+                    )}
+                  </View>
+                </View>
               </View>
-              <View className="items-end">
-                <Text className="text-xs text-gray-400">৳{currentPrice.toFixed(2)}</Text>
-                <Text
-                  className={`text-sm font-semibold ${
-                    changed ? "text-green-600" : "text-gray-800"
-                  }`}
-                >
-                  ৳{(changed ? newPrice : currentPrice).toFixed(2)}
-                </Text>
+
+              {/* Price */}
+              <View className="mt-4 pt-3 border-t border-gray-100 flex-row justify-between items-center">
+                <View>
+                  <Text className="text-xs text-gray-500">
+                    Current Sale Price
+                  </Text>
+
+                  <Text className="text-xl font-bold text-gray-900 mt-1">
+                    ৳{Number(item.SalePrice ?? 0).toFixed(2)}
+                  </Text>
+                </View>
+
+                <View className="bg-gray-50 rounded-xl px-3 py-2">
+                  <Text className="text-xs text-gray-400">Category</Text>
+
+                  <Text className="text-xs font-medium text-gray-700 mt-1">
+                    {categoryName(item.CategoryID)}
+                  </Text>
+                </View>
               </View>
             </TouchableOpacity>
           );
         }}
         ListEmptyComponent={
-          <Text className="text-center text-gray-400 mt-10">No products found</Text>
+          <View className="items-center justify-center py-20">
+            <Ionicons name="pricetag-outline" size={45} color="#D1D5DB" />
+
+            <Text className="text-gray-500 mt-3">No products found</Text>
+
+            <Text className="text-gray-400 text-xs mt-1">
+              Try changing your search or filters
+            </Text>
+          </View>
         }
       />
 
-      {/* Filter modals */}
+      {/* BULK ACTION BAR */}
+      {selectedIds.size > 0 && (
+        <View className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 pt-3 pb-8">
+          <TouchableOpacity
+            onPress={() => setBulkEditVisible(true)}
+            className="bg-green-600 rounded-xl py-3.5 items-center flex-row justify-center"
+          >
+            <Ionicons name="pricetag" size={18} color="#FFFFFF" />
+            <Text className="text-white font-semibold ml-2">
+              Edit Price ({selectedIds.size})
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* BULK EDIT PRICE MODAL */}
+      <BulkEditPriceModal
+        visible={bulkEditVisible}
+        products={selectedProducts}
+        onClose={() => setBulkEditVisible(false)}
+        onUpdated={() => {
+          setBulkEditVisible(false);
+          setSelectedIds(new Set());
+          fetchData();
+        }}
+      />
+
+      {/* FILTER MODAL */}
       <Modal
         visible={filterModal !== null}
         transparent
@@ -301,131 +379,368 @@ export default function PriceUpdateScreen() {
         onRequestClose={() => setFilterModal(null)}
       >
         <Pressable
-          className="flex-1 bg-black/40 justify-center items-center px-6"
+          className="flex-1 bg-black/40 justify-end"
           onPress={() => setFilterModal(null)}
         >
           <Pressable
-            className="bg-white rounded-2xl w-full max-w-sm max-h-[70%] p-5"
-            onPress={(e) => e.stopPropagation()}
+            className="bg-white rounded-t-3xl p-5"
+            onPress={(event) => event.stopPropagation()}
           >
-            <View className="flex-row items-center justify-between mb-4">
-              <Text className="text-lg font-semibold text-gray-900">
-                {filterModal === "category"
-                  ? "Filter by Category"
-                  : filterModal === "brand"
-                  ? "Filter by Brand"
-                  : "Update Type"}
+            <View className="flex-row justify-between items-center mb-4">
+              <Text className="text-lg font-bold text-gray-900">
+                Select {filterModal === "category" ? "Category" : "Brand"}
               </Text>
+
               <TouchableOpacity onPress={() => setFilterModal(null)}>
-                <Ionicons name="close" size={22} color="#6B7280" />
+                <Ionicons name="close" size={24} color="#6B7280" />
               </TouchableOpacity>
             </View>
 
-            {filterModal === "category" && (
-              <FlatList
-                data={[{ id: "All" as any, name: "All Categories" }, ...categories]}
-                keyExtractor={(item) => item.id.toString()}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    onPress={() => {
-                      setCategoryFilter(item.id as any);
-                      setFilterModal(null);
-                    }}
-                    className={`flex-row items-center justify-between border rounded-xl px-4 py-3 mb-2 ${
-                      categoryFilter === item.id
-                        ? "border-blue-500 bg-blue-50"
-                        : "border-gray-200 bg-white"
-                    }`}
-                  >
-                    <Text
-                      className={
-                        categoryFilter === item.id
-                          ? "text-blue-600 font-semibold"
-                          : "text-gray-700"
-                      }
-                    >
-                      {item.name}
-                    </Text>
-                    {categoryFilter === item.id && (
-                      <Ionicons name="checkmark-circle" size={20} color="#3B82F6" />
-                    )}
-                  </TouchableOpacity>
-                )}
-              />
-            )}
+            <TouchableOpacity
+              onPress={() => {
+                if (filterModal === "category") {
+                  setCategoryFilter("All");
+                } else {
+                  setBrandFilter("All");
+                }
 
-            {filterModal === "brand" && (
-              <FlatList
-                data={[{ id: "All" as any, name: "All Brands" }, ...brands]}
-                keyExtractor={(item) => item.id.toString()}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    onPress={() => {
-                      setBrandFilter(item.id as any);
-                      setFilterModal(null);
-                    }}
-                    className={`flex-row items-center justify-between border rounded-xl px-4 py-3 mb-2 ${
-                      brandFilter === item.id
-                        ? "border-blue-500 bg-blue-50"
-                        : "border-gray-200 bg-white"
-                    }`}
-                  >
-                    <Text
-                      className={
-                        brandFilter === item.id
-                          ? "text-blue-600 font-semibold"
-                          : "text-gray-700"
-                      }
-                    >
-                      {item.name}
-                    </Text>
-                    {brandFilter === item.id && (
-                      <Ionicons name="checkmark-circle" size={20} color="#3B82F6" />
-                    )}
-                  </TouchableOpacity>
-                )}
-              />
-            )}
+                setFilterModal(null);
+              }}
+              className="py-4 border-b border-gray-100"
+            >
+              <Text className="text-gray-900 font-medium">
+                All {filterModal === "category" ? "Categories" : "Brands"}
+              </Text>
+            </TouchableOpacity>
 
-            {filterModal === "type" && (
-              <View>
-                {(
-                  [
-                    { key: "percentage", label: "Percentage (%)" },
-                    { key: "fixed", label: "Fixed Amount (৳)" },
-                  ] as const
-                ).map((opt) => (
+            {filterModal === "category"
+              ? categories.map((category) => (
                   <TouchableOpacity
-                    key={opt.key}
+                    key={category.id}
                     onPress={() => {
-                      setUpdateType(opt.key);
+                      setCategoryFilter(category.id);
                       setFilterModal(null);
                     }}
-                    className={`flex-row items-center justify-between border rounded-xl px-4 py-3 mb-2 ${
-                      updateType === opt.key
-                        ? "border-blue-500 bg-blue-50"
-                        : "border-gray-200 bg-white"
-                    }`}
+                    className="py-4 border-b border-gray-100"
                   >
-                    <Text
-                      className={
-                        updateType === opt.key
-                          ? "text-blue-600 font-semibold"
-                          : "text-gray-700"
-                      }
-                    >
-                      {opt.label}
-                    </Text>
-                    {updateType === opt.key && (
-                      <Ionicons name="checkmark-circle" size={20} color="#3B82F6" />
-                    )}
+                    <Text className="text-gray-800">{category.name}</Text>
+                  </TouchableOpacity>
+                ))
+              : brands.map((brand) => (
+                  <TouchableOpacity
+                    key={brand.id}
+                    onPress={() => {
+                      setBrandFilter(brand.id);
+                      setFilterModal(null);
+                    }}
+                    className="py-4 border-b border-gray-100"
+                  >
+                    <Text className="text-gray-800">{brand.name}</Text>
                   </TouchableOpacity>
                 ))}
-              </View>
-            )}
           </Pressable>
         </Pressable>
       </Modal>
     </View>
   );
+}
+
+/* ============================================================
+   BULK EDIT PRICE MODAL (multiple selected products)
+============================================================ */
+
+type BulkEditPriceModalProps = {
+  visible: boolean;
+  products: Product[];
+  onClose: () => void;
+  onUpdated: () => void;
+};
+
+function BulkEditPriceModal({
+  visible,
+  products,
+  onClose,
+  onUpdated,
+}: BulkEditPriceModalProps) {
+  // Map of ProductID -> new price string being edited
+  const [priceDrafts, setPriceDrafts] = useState<Record<number, string>>({});
+  const [saving, setSaving] = useState(false);
+
+  // Re-seed drafts whenever the modal opens with a new selection
+  useEffect(() => {
+    if (visible) {
+      const seeded: Record<number, string> = {};
+      products.forEach((p) => {
+        seeded[p.ProductID] = String(Number(p.SalePrice ?? 0));
+      });
+      setPriceDrafts(seeded);
+    }
+  }, [visible, products]);
+
+  const handleChangePrice = (productId: number, value: string) => {
+    setPriceDrafts((prev) => ({ ...prev, [productId]: value }));
+  };
+
+  const getRowInfo = (product: Product) => {
+    const oldPrice = Number(product.SalePrice ?? 0);
+    const rawValue = priceDrafts[product.ProductID] ?? "";
+    const newPrice = Number(rawValue);
+    const validNumber =
+      rawValue.trim() !== "" && !isNaN(newPrice) && newPrice >= 0;
+    const difference = validNumber ? newPrice - oldPrice : 0;
+    const percentage =
+      validNumber && oldPrice > 0 ? (difference / oldPrice) * 100 : 0;
+    const changed = validNumber && newPrice !== oldPrice;
+
+    return {
+      oldPrice,
+      newPrice,
+      rawValue,
+      validNumber,
+      difference,
+      percentage,
+      changed,
+    };
+  };
+
+  const changedCount = products.reduce((count, p) => {
+    const { changed } = getRowInfo(p);
+    return count + (changed ? 1 : 0);
+  }, 0);
+
+  const hasInvalidEntry = products.some((p) => {
+    const { rawValue, validNumber } = getRowInfo(p);
+    return rawValue.trim() !== "" && !validNumber;
+  });
+
+  const handleUpdateAll = async () => {
+    if (hasInvalidEntry) {
+      Alert.alert(
+        "Invalid Price",
+        "Please fix the highlighted prices before continuing.",
+      );
+      return;
+    }
+
+    const toUpdate = products.filter((p) => getRowInfo(p).changed);
+
+    if (toUpdate.length === 0) {
+      Alert.alert("No Changes", "You haven't changed any prices yet.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      const results = await Promise.allSettled(
+        toUpdate.map((p) => {
+          const { newPrice } = getRowInfo(p);
+          return updateProductPrice(p.ProductID, newPrice);
+        }),
+      );
+
+      const succeeded = results.filter((r) => r.status === "fulfilled").length;
+      const failed = results.length - succeeded;
+
+      Alert.alert(
+        failed === 0 ? "Success" : "Partially Updated",
+        failed === 0
+          ? `${succeeded} product${succeeded !== 1 ? "s" : ""} updated successfully.`
+          : `${succeeded} updated, ${failed} failed. Please try again for the failed items.`,
+      );
+
+      onUpdated();
+    } catch (error) {
+      console.error("Bulk price update error:", error);
+      Alert.alert("Error", "Couldn't update product prices.");
+    } finally {
+      setSaving(false);
+    }
+  };
+    return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+      >
+        <View className="flex-1 bg-black/50 justify-end">
+          <View
+            className="bg-white rounded-t-3xl px-5 pt-5"
+            style={{ maxHeight: "88%" }}
+          >
+            {/* HEADER */}
+            <View className="flex-row justify-between items-center mb-4">
+              <View>
+                <Text className="text-xl font-bold text-gray-900">
+                  Update Prices
+                </Text>
+
+                <Text className="text-xs text-gray-500 mt-1">
+                  {products.length} product{products.length !== 1 ? "s" : ""}{" "}
+                  selected
+                  {changedCount > 0 ? ` · ${changedCount} changed` : ""}
+                </Text>
+              </View>
+
+              <TouchableOpacity onPress={onClose} disabled={saving}>
+                <Ionicons
+                  name="close-circle-outline"
+                  size={27}
+                  color="#6B7280"
+                />
+              </TouchableOpacity>
+            </View>
+
+            {/* PRODUCT LIST */}
+            <FlatList
+              data={products}
+              keyExtractor={(item) => String(item.ProductID)}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingBottom: 12 }}
+              renderItem={({ item }) => {
+                const {
+                  oldPrice,
+                  rawValue,
+                  validNumber,
+                  difference,
+                  percentage,
+                  changed,
+                } = getRowInfo(item);
+                const isIncrease = difference > 0;
+                const isDecrease = difference < 0;
+                const showError = rawValue.trim() !== "" && !validNumber;
+
+                return (
+                  <View className="border border-gray-200 rounded-2xl p-4 mb-3">
+                    <Text
+                      className="text-sm font-semibold text-gray-900"
+                      numberOfLines={2}
+                    >
+                      {item.ProductName}
+                    </Text>
+
+                    <Text className="text-xs text-gray-500 mt-1 mb-3">
+                      {item.ProductCode}
+                    </Text>
+
+                    <View className="flex-row items-center">
+                      {/* Old price */}
+                      <View className="flex-1 mr-2">
+                        <Text className="text-xs text-gray-400 mb-1">
+                          Old Price
+                        </Text>
+
+                        <View className="bg-gray-50 rounded-xl px-3 py-2.5">
+                          <Text className="text-sm font-semibold text-gray-700">
+                            ৳{oldPrice.toFixed(2)}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <Ionicons
+                        name="arrow-forward"
+                        size={16}
+                        color="#9CA3AF"
+                        style={{ marginHorizontal: 4, marginTop: 14 }}
+                      />
+
+                      {/* New price */}
+                      <View className="flex-1 ml-2">
+                        <Text className="text-xs text-gray-400 mb-1">
+                          New Price
+                        </Text>
+
+                        <View
+                          className={`flex-row items-center border rounded-xl px-3 ${
+                            showError ? "border-red-400" : "border-gray-200"
+                          }`}
+                        >
+                          <Text className="text-sm text-gray-500 mr-1">৳</Text>
+
+                          <TextInput
+                            value={rawValue}
+                            onChangeText={(value) =>
+                              handleChangePrice(item.ProductID, value)
+                            }
+                            keyboardType="decimal-pad"
+                            placeholder="0.00"
+                            placeholderTextColor="#9CA3AF"
+                            className="flex-1 py-2.5 text-sm text-gray-900"
+                            editable={!saving}
+                          />
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* Diff row */}
+                    {changed && (
+                      <View className="flex-row justify-end mt-2">
+                        <Text
+                          className={`text-xs font-bold ${
+                            isIncrease
+                              ? "text-green-600"
+                              : isDecrease
+                                ? "text-red-600"
+                                : "text-gray-500"
+                          }`}
+                        >
+                          {difference >= 0 ? "+" : ""}৳{difference.toFixed(2)} (
+                          {percentage >= 0 ? "+" : ""}
+                          {percentage.toFixed(2)}%)
+                        </Text>
+                      </View>
+                    )}
+
+                    {showError && (
+                      <Text className="text-xs text-red-500 mt-2">
+                        Enter a valid price
+                      </Text>
+                    )}
+                  </View>
+                );
+              }}
+            />
+
+            {/* BUTTONS */}
+            <View className="flex-row pb-8 pt-2">
+              <TouchableOpacity
+                onPress={onClose}
+                disabled={saving}
+                className="flex-1 border border-gray-200 rounded-xl py-3.5 mr-2 items-center"
+              >
+                <Text className="text-gray-600 font-semibold">Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleUpdateAll}
+                disabled={saving || changedCount === 0}
+                className={`flex-1 rounded-xl py-3.5 ml-2 items-center ${
+                  saving || changedCount === 0
+                    ? "bg-green-300"
+                    : "bg-green-600"
+                }`}
+              >
+                {saving ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text className="text-white font-semibold">
+                    Update {changedCount > 0 ? `${changedCount} ` : ""}Price
+                    {changedCount !== 1 ? "s" : ""}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+
 }

@@ -321,3 +321,39 @@ def upload_product_image(file: UploadFile = File(...)):
 
     # Return a relative URL — the app will prefix it with the API base URL
     return {"url": f"/uploads/products/{filename}"}
+
+
+@router.put("/{product_id}/price")
+def update_product_price(
+    product_id: int,
+    data: dict,
+    db: Session = Depends(get_db)
+):
+    product = db.query(Product).filter(
+        Product.ProductID == product_id
+    ).first()
+
+    if not product:
+        raise HTTPException(
+            status_code=404,
+            detail="Product not found"
+        )
+
+    new_price = data.get("SalePrice")
+
+    if new_price is None or new_price < 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid price"
+        )
+
+    product.SalePrice = new_price
+
+    db.commit()
+    db.refresh(product)
+
+    return {
+        "message": "Price updated successfully",
+        "ProductID": product.ProductID,
+        "SalePrice": product.SalePrice
+    }

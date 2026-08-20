@@ -114,6 +114,36 @@ export const uploadProductImage = async (uri: string): Promise<string> => {
   });
 
   // Prepend the base API URL so the stored value is a full, usable URL
-  return `${API_URL}${res.data.url}`;
+  return res.data.url;
 };
 
+export const updateProductPrice = async (
+  productId: number,
+  newPrice: number
+) => {
+  const response = await fetch(
+    `${API_URL}/products/${productId}/price`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        SalePrice: newPrice,
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || "Failed to update price");
+  }
+
+  return response.json();
+};
+
+export const getFullImageUrl = (relativePath?: string): string | undefined => {
+  if (!relativePath) return undefined;
+  if (relativePath.startsWith("http")) return relativePath; // already a full URL (e.g. old data)
+  return `${API_URL}${relativePath}`;
+};
