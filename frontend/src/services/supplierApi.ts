@@ -2,7 +2,7 @@ import axios from "axios";
 
 // Android emulator → 10.0.2.2
 // Physical device → your PC's local IP (ipconfig)
-const API_URL = "http://192.168.15.243:8000";
+import { API_URL } from "../config/api";
 
 export const supplierApi = axios.create({
   baseURL: API_URL,
@@ -64,3 +64,4 @@ export const getNextSupplierCode = async (): Promise<string> => {
   const response = await supplierApi.get("/suppliers/next-code");
   return response.data.SupplierCode;
 };
+

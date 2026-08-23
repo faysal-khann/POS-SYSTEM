@@ -14,11 +14,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import SupplierCard from "../../../components/SupplierCard";
 import SideMenu from "../../../components/SideMenu";
-import { getSuppliers, createSupplier } from "../../../services/supplierApi";
+import { getSuppliers, createSupplier, Supplier } from "../../../services/supplierApi";
 import { SafeAreaView } from "react-native-safe-area-context";
-
+ import { useFocusEffect } from "expo-router";
 export default function SupplierListScreen() {
-  const PAGE_SIZE = 1; // 👈 change this number to control suppliers per page
+ // 👈 change this number to control suppliers per page
   const [menuVisible, setMenuVisible] = useState(false);
   const [search, setSearch] = useState("");
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -31,9 +31,9 @@ export default function SupplierListScreen() {
   >("All");
   const [showFilter, setShowFilter] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(2); // 👈 default page size — change here
+  const [pageSize, setPageSize] = useState(5); // 👈 default page size — change here
   const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
-
+ 
   const fetchSuppliers = useCallback(async () => {
     try {
       setError(null);
@@ -48,10 +48,11 @@ export default function SupplierListScreen() {
     }
   }, []);
 
-  useEffect(() => {
+ useFocusEffect(
+  useCallback(() => {
     fetchSuppliers();
-  }, [fetchSuppliers]);
-
+  }, [fetchSuppliers])
+);
   const onRefresh = () => {
     setRefreshing(true);
     fetchSuppliers();
@@ -60,7 +61,7 @@ export default function SupplierListScreen() {
   const filteredSuppliers = suppliers.filter(
     (s) =>
       (s.SupplierName.toLowerCase().includes(search.toLowerCase()) ||
-        s.Phone.includes(search) ||
+       
         s.Email?.toLowerCase().includes(search.toLowerCase())) &&
       (statusFilter === "All" || s.Status === statusFilter),
   );

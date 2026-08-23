@@ -2,7 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List
+from fastapi import UploadFile, File
+import shutil
+import uuid
+import os
 
+UPLOAD_DIR = "uploads/products"
 from ..database import get_db
 from ..models.product import Product, Category, Brand, Unit
 from ..schemas.product import (
@@ -13,7 +18,8 @@ from ..schemas.product import (
 )
 
 router = APIRouter(prefix="/products", tags=["Products"])
-
+from ..schemas.product import BulkPriceUpdateRequest, BulkPriceUpdateResult
+from typing import List as TList
 
 # =========================================================
 # Generate Product Code
@@ -140,6 +146,13 @@ def get_products(db: Session = Depends(get_db)):
     ]
 
 
+@router.get("/by-barcode/{barcode}", response_model=ProductOut)
+def get_product_by_barcode(barcode: str, db: Session = Depends(get_db)):
+    product = db.query(Product).filter(Product.Barcode == barcode).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found for this barcode")
+    return product
+
 # =========================================================
 # Get Single Product
 # =========================================================
@@ -255,4 +268,92 @@ def delete_product(
 
     return {
         "message": "Product deleted successfully"
+    }
+
+
+
+# //update bulk_price_update
+@router.post("/bulk-price-update", response_model=TList[BulkPriceUpdateResult])
+def bulk_price_update(payload: BulkPriceUpdateRequest, db: Session = Depends(get_db)):
+    if payload.PriceField not in ("SalePrice", "PurchasePrice"):
+        raise HTTPException(status_code=400, detail="Invalid price field")
+
+    products = db.query(Product).filter(Product.ProductID.in_(payload.ProductIDs)).all()
+    if not products:
+        raise HTTPException(status_code=404, detail="No matching products found")
+
+    results = []
+    for p in products:
+        old_price = float(getattr(p, payload.PriceField))
+
+        if payload.UpdateType == "percentage":
+            new_price = round(old_price * (1 + payload.Value / 100), 2)
+        elif payload.UpdateType == "fixed":
+            new_price = round(old_price + payload.Value, 2)
+        else:
+            raise HTTPException(status_code=400, detail="Invalid update type")
+
+        setattr(p, payload.PriceField, new_price)
+
+        results.append(BulkPriceUpdateResult(
+            ProductID=p.ProductID,
+            ProductCode=p.ProductCode,
+            ProductName=p.ProductName,
+            OldPrice=old_price,
+            NewPrice=new_price,
+        ))
+
+    db.commit()
+    return results
+
+@router.post("/upload-image")
+def upload_product_image(file: UploadFile = File(...)):
+    allowed_types = {"image/jpeg", "image/png", "image/webp"}
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Only JPG, PNG, or WEBP images are allowed")
+
+    ext = os.path.splitext(file.filename)[1]
+    filename = f"{uuid.uuid4().hex}{ext}"
+    filepath = os.path.join(UPLOAD_DIR, filename)
+
+    with open(filepath, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    # Return a relative URL — the app will prefix it with the API base URL
+    return {"url": f"/uploads/products/{filename}"}
+
+
+@router.put("/{product_id}/price")
+def update_product_price(
+    product_id: int,
+    data: dict,
+    db: Session = Depends(get_db)
+):
+    product = db.query(Product).filter(
+        Product.ProductID == product_id
+    ).first()
+
+    if not product:
+        raise HTTPException(
+            status_code=404,
+            detail="Product not found"
+        )
+
+    new_price = data.get("SalePrice")
+
+    if new_price is None or new_price < 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid price"
+        )
+
+    product.SalePrice = new_price
+
+    db.commit()
+    db.refresh(product)
+
+    return {
+        "message": "Price updated successfully",
+        "ProductID": product.ProductID,
+        "SalePrice": product.SalePrice
     }
