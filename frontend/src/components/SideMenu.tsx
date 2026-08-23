@@ -24,7 +24,6 @@ const menuItems = [
   { label: "Dashboard", icon: "home-outline" },
   { label: "POS", icon: "card-outline" },
   { label: "Inventory", icon: "layers-outline" },
-  { label: "Purchase", icon: "bag-outline" },
 ];
 
 const productSubItems = [
@@ -37,15 +36,27 @@ const productSubItems = [
   "Price Update",
   "Bulk Price Update",
 ];
+
+const purchaseSubItems = [
+  "Purchase List",
+  "New Purchase",
+  "Purchase Returns",
+  "Supplier Dues",
+];
 const supplierSubItems = ["Supplier List", "Add Supplier", "Supplier Ledger"];
-const customerSubItems = ["Customer List", "Add Customer", "Customer Ledger", "Loyalty Points"];
+const customerSubItems = [
+  "Customer List",
+  "Add Customer",
+  "Customer Ledger",
+  "Loyalty Points",
+];
 
 const productRoutes: Record<string, string> = {
   "Product List": "/products",
   "Add Product": "/products/add",
-  "Categories": "/products/categories",
-  "Brands": "/products/brands",
-  "Units": "/products/units",
+  Categories: "/products/categories",
+  Brands: "/products/brands",
+  Units: "/products/units",
   "Barcode Labels": "/products/barcode-labels",
   "Price Update": "/products/price-update",
   "Bulk Price Update": "/products/bulk-price-update",
@@ -73,6 +84,7 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
   const [productsOpen, setProductsOpen] = useState(true);
   const [suppliersOpen, setSuppliersOpen] = useState(false);
   const [customersOpen, setCustomersOpen] = useState(false);
+  const [purchaseOpen, setPurchaseOpen] = useState(false);
 
   useEffect(() => {
     Animated.timing(translateX, {
@@ -99,146 +111,185 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
           <Text className="text-white font-bold text-lg ml-2">POS SYSTEM</Text>
         </View>
         <ScrollView>
-
-        
-        {/* Dashboard, POS */}
-        {menuItems.slice(0, 2).map((item) => (
-          <TouchableOpacity
-            key={item.label}
-            className="flex-row items-center py-3 px-2 rounded-lg mb-1"
-          >
-            <Ionicons name={item.icon as any} size={18} color="#9CA3AF" />
-            <Text className="text-gray-300 ml-3 text-sm">{item.label}</Text>
-          </TouchableOpacity>
-        ))}
-
-        {/* Products - expandable */}
-        <TouchableOpacity
-          onPress={() => setProductsOpen(!productsOpen)}
-          className="flex-row items-center justify-between py-3 px-2 rounded-lg  mb-1 {productsOpen ? 'bg-blue-600' : ''}"
-
-        
-        >
-          <View className="flex-row items-center">
-            <Ionicons name="cube-outline" size={18} color="#fff" />
-            <Text className="text-white ml-3 text-sm font-medium">
-              Products
-            </Text>
-          </View>
-          <Ionicons
-            name={productsOpen ? "chevron-up" : "chevron-down"}
-            size={14}
-            color="#fff"
-          />
-        </TouchableOpacity>
-
-        {productsOpen &&
-          productSubItems.map((sub) => (
+          {/* Dashboard, POS */}
+          {menuItems.slice(0, 2).map((item) => (
             <TouchableOpacity
-              key={sub}
-              onPress={() => {
-                onClose();
-                const route = productRoutes[sub];
-                if (route) {
-                  router.push(route as any);
-                }
-              }}
-              className="py-2.5 pl-10 pr-2 rounded-lg mb-1"
+              key={item.label}
+              className="flex-row items-center py-3 px-2 rounded-lg mb-1"
             >
-              <Text className="text-gray-400 text-sm">{sub}</Text>
+              <Ionicons name={item.icon as any} size={18} color="#9CA3AF" />
+              <Text className="text-gray-300 ml-3 text-sm">{item.label}</Text>
             </TouchableOpacity>
           ))}
 
-        {/* Inventory, Purchase */}
-        {menuItems.slice(2).map((item) => (
+          {/* Products - expandable */}
           <TouchableOpacity
-            key={item.label}
-            className="flex-row items-center py-3 px-2 rounded-lg mb-1"
+            onPress={() => setProductsOpen(!productsOpen)}
+            className={`flex-row items-center justify-between py-3 px-2 rounded-lg  mb-1 ${
+              productsOpen ? "bg-blue-600" : ""
+            }`}
           >
-            <Ionicons name={item.icon as any} size={18} color="#9CA3AF" />
-            <Text className="text-gray-300 ml-3 text-sm">{item.label}</Text>
+            <View className="flex-row items-center">
+              <Ionicons name="cube-outline" size={18} color="#fff" />
+              <Text className="text-white ml-3 text-sm font-medium">
+                Products
+              </Text>
+            </View>
+            <Ionicons
+              name={productsOpen ? "chevron-up" : "chevron-down"}
+              size={14}
+              color="#fff"
+            />
           </TouchableOpacity>
-        ))}
 
-        {/* Suppliers - expandable */}
-        <TouchableOpacity
-          onPress={() => setSuppliersOpen(!suppliersOpen)}
-          className="flex-row items-center justify-between py-3 px-2 rounded-lg mb-1"
-        >
-          <View className="flex-row items-center">
-            <Ionicons name="people-circle-outline" size={18} color="#fff" />
-            <Text className="text-white ml-3 text-sm font-medium">
-              Suppliers
-            </Text>
-          </View>
-          <Ionicons
-            name={suppliersOpen ? "chevron-up" : "chevron-down"}
-            size={14}
-            color="#fff"
-          />
-        </TouchableOpacity>
+          {productsOpen &&
+            productSubItems.map((sub) => (
+              <TouchableOpacity
+                key={sub}
+                onPress={() => {
+                  onClose();
+                  const route = productRoutes[sub];
+                  if (route) {
+                    router.push(route as any);
+                  }
+                }}
+                className="py-2.5 pl-10 pr-2 rounded-lg mb-1"
+              >
+                <Text className="text-gray-400 text-sm">{sub}</Text>
+              </TouchableOpacity>
+            ))}
 
-        {suppliersOpen &&
-          supplierSubItems.map((sub) => (
+          {/* Inventory, Purchase */}
+          {menuItems.slice(2).map((item) => (
             <TouchableOpacity
-              key={sub}
-              onPress={() => {
-                onClose();
-                const route = supplierRoutes[sub];
-                if (route) {
-                  router.push(route as any);
-                }
-              }}
-              className="py-2.5 pl-10 pr-2 rounded-lg mb-1"
+              key={item.label}
+              className="flex-row items-center py-3 px-2 rounded-lg mb-1"
             >
-              <Text className="text-gray-400 text-sm">{sub}</Text>
+              <Ionicons name={item.icon as any} size={18} color="#9CA3AF" />
+              <Text className="text-gray-300 ml-3 text-sm">{item.label}</Text>
             </TouchableOpacity>
           ))}
 
-        {/* Customers - expandable */}
-        <TouchableOpacity
-          onPress={() => setCustomersOpen(!customersOpen)}
-          className="flex-row items-center justify-between py-3 px-2 rounded-lg mb-1"
-        >
-          <View className="flex-row items-center">
-            <Ionicons name="people-circle-outline" size={18} color="#fff" />
-            <Text className="text-white ml-3 text-sm font-medium">
-              Customers
-            </Text>
-          </View>
-          <Ionicons
-            name={customersOpen ? "chevron-up" : "chevron-down"}
-            size={14}
-            color="#fff"
-          />
-        </TouchableOpacity>
+          {/* Purchase - expandable */}
+          <TouchableOpacity
+            onPress={() => setPurchaseOpen(!purchaseOpen)}
+             className={`flex-row items-center justify-between py-3 px-2 rounded-lg mb-1 ${
+              purchaseOpen ? "bg-blue-600" : ""
+            }`}
+          >
+            <View className="flex-row items-center">
+              <Ionicons name="cart-outline" size={18} color="#fff" />
+              <Text className="text-white ml-3 text-sm font-medium">
+                Purchase
+              </Text>
+            </View>
+            <Ionicons
+              name={purchaseOpen ? "chevron-up" : "chevron-down"}
+              size={14}
+              color="#fff"
+            />
+          </TouchableOpacity>
 
-        {customersOpen &&
-          customerSubItems.map((sub) => (
+          {purchaseOpen &&
+            purchaseSubItems.map((sub) => (
+              <TouchableOpacity
+                key={sub}
+                onPress={() => {
+                  onClose();
+                  const route = supplierRoutes[sub];
+                  if (route) {
+                    router.push(route as any);
+                  }
+                }}
+                className="py-2.5 pl-10 pr-2 rounded-lg mb-1"
+              >
+                <Text className="text-gray-400 text-sm">{sub}</Text>
+              </TouchableOpacity>
+            ))}
+
+          {/* Suppliers - expandable */}
+          <TouchableOpacity
+            onPress={() => setSuppliersOpen(!suppliersOpen)}
+             className={`flex-row items-center justify-between py-3 px-2 rounded-lg mb-1 ${
+              suppliersOpen ? "bg-blue-600" : ""
+            }`}
+          >
+            <View className="flex-row items-center">
+              <Ionicons name="people-circle-outline" size={18} color="#fff" />
+              <Text className="text-white ml-3 text-sm font-medium">
+                Suppliers
+              </Text>
+            </View>
+            <Ionicons
+              name={suppliersOpen ? "chevron-up" : "chevron-down"}
+              size={14}
+              color="#fff"
+            />
+          </TouchableOpacity>
+
+          {suppliersOpen &&
+            supplierSubItems.map((sub) => (
+              <TouchableOpacity
+                key={sub}
+                onPress={() => {
+                  onClose();
+                  const route = supplierRoutes[sub];
+                  if (route) {
+                    router.push(route as any);
+                  }
+                }}
+                className="py-2.5 pl-10 pr-2 rounded-lg mb-1"
+              >
+                <Text className="text-gray-400 text-sm">{sub}</Text>
+              </TouchableOpacity>
+            ))}
+
+          {/* Customers - expandable */}
+          <TouchableOpacity
+            onPress={() => setCustomersOpen(!customersOpen)}
+            className={`flex-row items-center justify-between py-3 px-2 rounded-lg mb-1 ${
+              customersOpen ? "bg-blue-600" : ""
+            }`}
+          >
+            <View className="flex-row items-center">
+              <Ionicons name="people-circle-outline" size={18} color="#fff" />
+              <Text className="text-white ml-3 text-sm font-medium">
+                Customers
+              </Text>
+            </View>
+            <Ionicons
+              name={customersOpen ? "chevron-up" : "chevron-down"}
+              size={14}
+              color="#fff"
+            />
+          </TouchableOpacity>
+
+          {customersOpen &&
+            customerSubItems.map((sub) => (
+              <TouchableOpacity
+                key={sub}
+                onPress={() => {
+                  onClose();
+                  const route = customerRoutes[sub];
+                  if (route) {
+                    router.push(route as any);
+                  }
+                }}
+                className="py-2.5 pl-10 pr-2 rounded-lg mb-1"
+              >
+                <Text className="text-gray-400 text-sm">{sub}</Text>
+              </TouchableOpacity>
+            ))}
+
+          {bottomItems.map((item) => (
             <TouchableOpacity
-              key={sub}
-              onPress={() => {
-                onClose();
-                const route = customerRoutes[sub];
-                if (route) {
-                  router.push(route as any);
-                }
-              }}
-              className="py-2.5 pl-10 pr-2 rounded-lg mb-1"
+              key={item.label}
+              className="flex-row items-center py-3 px-2 rounded-lg mb-1"
             >
-              <Text className="text-gray-400 text-sm">{sub}</Text>
+              <Ionicons name={item.icon as any} size={18} color="#9CA3AF" />
+              <Text className="text-gray-300 ml-3 text-sm">{item.label}</Text>
             </TouchableOpacity>
           ))}
-
-        {bottomItems.map((item) => (
-          <TouchableOpacity
-            key={item.label}
-            className="flex-row items-center py-3 px-2 rounded-lg mb-1"
-          >
-            <Ionicons name={item.icon as any} size={18} color="#9CA3AF" />
-            <Text className="text-gray-300 ml-3 text-sm">{item.label}</Text>
-          </TouchableOpacity>
-        ))}
         </ScrollView>
       </Animated.View>
     </SafeAreaView>
