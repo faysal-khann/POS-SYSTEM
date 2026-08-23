@@ -7,6 +7,7 @@ import {
   Animated,
   Pressable,
   Dimensions,
+  ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -97,7 +98,9 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
           <Ionicons name="storefront-outline" size={22} color="#3B82F6" />
           <Text className="text-white font-bold text-lg ml-2">POS SYSTEM</Text>
         </View>
+        <ScrollView>
 
+        
         {/* Dashboard, POS */}
         {menuItems.slice(0, 2).map((item) => (
           <TouchableOpacity
@@ -112,7 +115,9 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
         {/* Products - expandable */}
         <TouchableOpacity
           onPress={() => setProductsOpen(!productsOpen)}
-          className="flex-row items-center justify-between py-3 px-2 rounded-lg bg-blue-600 mb-1"
+          className="flex-row items-center justify-between py-3 px-2 rounded-lg  mb-1 {productsOpen ? 'bg-blue-600' : ''}"
+
+        
         >
           <View className="flex-row items-center">
             <Ionicons name="cube-outline" size={18} color="#fff" />
@@ -158,7 +163,7 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
         {/* Suppliers - expandable */}
         <TouchableOpacity
           onPress={() => setSuppliersOpen(!suppliersOpen)}
-          className="flex-row items-center justify-between py-3 px-2 rounded-lg bg-blue-600 mb-1"
+          className="flex-row items-center justify-between py-3 px-2 rounded-lg mb-1"
         >
           <View className="flex-row items-center">
             <Ionicons name="people-circle-outline" size={18} color="#fff" />
@@ -193,7 +198,7 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
         {/* Customers - expandable */}
         <TouchableOpacity
           onPress={() => setCustomersOpen(!customersOpen)}
-          className="flex-row items-center justify-between py-3 px-2 rounded-lg bg-blue-600 mb-1"
+          className="flex-row items-center justify-between py-3 px-2 rounded-lg mb-1"
         >
           <View className="flex-row items-center">
             <Ionicons name="people-circle-outline" size={18} color="#fff" />
@@ -234,6 +239,7 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
             <Text className="text-gray-300 ml-3 text-sm">{item.label}</Text>
           </TouchableOpacity>
         ))}
+        </ScrollView>
       </Animated.View>
     </SafeAreaView>
   );
