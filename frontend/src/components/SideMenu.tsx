@@ -72,6 +72,13 @@ const customerRoutes: Record<string, string> = {
   "Customer Ledger": "/customers/ledger",
   "Loyalty Points": "/customers/loyalty",
 };
+
+const purchaseRoutes: Record<string, string> = {
+  "Purchase List": "/purchases",
+  "New Purchase": "/purchases/add",
+  "Purchase Returns": "/purchases/returns",
+  "Supplier Dues": "/purchases/supplier-dues",
+};
 const bottomItems = [
   { label: "Reports", icon: "document-text-outline" },
   { label: "Expenses", icon: "wallet-outline" },
@@ -196,7 +203,7 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
                 key={sub}
                 onPress={() => {
                   onClose();
-                  const route = supplierRoutes[sub];
+                  const route = purchaseRoutes[sub];
                   if (route) {
                     router.push(route as any);
                   }

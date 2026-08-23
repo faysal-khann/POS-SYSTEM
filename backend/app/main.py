@@ -10,6 +10,7 @@ from .routers import products
 from .routers import categories
 from .routers import brands
 from .routers import units
+from .routers import purchases
 load_dotenv()
 
 app = FastAPI()
@@ -27,6 +28,7 @@ app.include_router(suppliers.router)
 app.include_router(customers.router)
 app.include_router(products.router)
 
+app.include_router(purchases.router)
 app.include_router(units.router)
 app.include_router(brands.router)
 app.include_router(categories.router)
