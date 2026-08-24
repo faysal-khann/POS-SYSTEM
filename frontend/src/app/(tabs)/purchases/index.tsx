@@ -129,7 +129,7 @@ export default function PurchaseListScreen() {
           </Text>
         </View>
         <TouchableOpacity
-          //   onPress={() => router.push("/purchases/add")}
+          onPress={() => router.push("/purchases/add")}
           className="bg-blue-600 px-3 py-2 rounded-lg flex-row items-center"
         >
           <Ionicons name="add" size={16} color="#fff" />

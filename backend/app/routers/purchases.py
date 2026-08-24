@@ -5,7 +5,7 @@ from typing import List, Optional
 from datetime import date
 
 from ..database import get_db
-from ..models.purchase import Purchase, PurchaseItem
+from ..models.purchase import Purchase, PurchaseItem, Branch
 from ..models.supplier import Supplier
 from ..schemas.purchase import PurchaseCreate, PurchaseOut, PurchaseListItem
 
@@ -59,21 +59,41 @@ def get_purchases(
     return result
 
 
-@router.get("/{purchase_id}", response_model=PurchaseOut)
-def get_purchase(purchase_id: int, db: Session = Depends(get_db)):
-    purchase = (
-        db.query(Purchase)
-        .options(joinedload(Purchase.items).joinedload(PurchaseItem.product))
-        .filter(Purchase.PurchaseID == purchase_id)
-        .first()
-    )
-    if not purchase:
-        raise HTTPException(status_code=404, detail="Purchase not found")
+from pydantic import BaseModel
 
-    out = PurchaseOut.model_validate(purchase)
-    for i, item in enumerate(purchase.items):
-        out.items[i].ProductName = item.product.ProductName if item.product else None
-    return out
+class BranchCreateInput(BaseModel):
+    CompanyID: int
+    BranchName: str
+    BranchCode: Optional[str] = None
+    ManagerName: Optional[str] = None
+    Phone: Optional[str] = None
+    Address: Optional[str] = None
+
+
+@router.post("/branches")
+def create_branch(payload: BranchCreateInput, db: Session = Depends(get_db)):
+    branch = Branch(
+        CompanyID=payload.CompanyID,
+        BranchName=payload.BranchName,
+        BranchCode=payload.BranchCode,
+        ManagerName=payload.ManagerName,
+        Phone=payload.Phone,
+        Address=payload.Address,
+        IsActive=True,
+    )
+    db.add(branch)
+    db.commit()
+    db.refresh(branch)
+    return {"id": branch.BranchID, "name": branch.BranchName}
+
+# --- Static/lookup routes MUST come before /{purchase_id} ---
+
+
+
+@router.get("/branches")
+def get_branches(db: Session = Depends(get_db)):
+    rows = db.query(Branch).all()
+    return [{"id": b.BranchID, "name": b.BranchName} for b in rows]
 
 
 @router.post("/", response_model=PurchaseOut)
@@ -99,7 +119,7 @@ def create_purchase(payload: PurchaseCreate, db: Session = Depends(get_db)):
         PaymentStatus=payload.PaymentStatus,
     )
     db.add(purchase)
-    db.flush()  # get PurchaseID before inserting items
+    db.flush()
 
     for item in payload.items:
         db.add(PurchaseItem(
@@ -115,6 +135,25 @@ def create_purchase(payload: PurchaseCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(purchase)
     return get_purchase(purchase.PurchaseID, db)
+
+
+# --- Dynamic routes go LAST ---
+
+@router.get("/{purchase_id}", response_model=PurchaseOut)
+def get_purchase(purchase_id: int, db: Session = Depends(get_db)):
+    purchase = (
+        db.query(Purchase)
+        .options(joinedload(Purchase.items).joinedload(PurchaseItem.product))
+        .filter(Purchase.PurchaseID == purchase_id)
+        .first()
+    )
+    if not purchase:
+        raise HTTPException(status_code=404, detail="Purchase not found")
+
+    out = PurchaseOut.model_validate(purchase)
+    for i, item in enumerate(purchase.items):
+        out.items[i].ProductName = item.product.ProductName if item.product else None
+    return out
 
 
 @router.delete("/{purchase_id}")
