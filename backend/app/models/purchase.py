@@ -73,3 +73,4 @@ class PurchaseItem(Base):
 
     purchase = relationship("Purchase", back_populates="items")
     product = relationship("Product")
+

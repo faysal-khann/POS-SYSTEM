@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from typing import List, Optional
 from datetime import date
+from pydantic import BaseModel
 
 from ..database import get_db
 from ..models.purchase import Purchase, PurchaseItem, Branch
@@ -59,23 +60,46 @@ def get_purchases(
     return result
 
 
-from pydantic import BaseModel
+
+
 
 class BranchCreateInput(BaseModel):
     CompanyID: int
     BranchName: str
-    BranchCode: Optional[str] = None
     ManagerName: Optional[str] = None
     Phone: Optional[str] = None
     Address: Optional[str] = None
+    # BranchCode removed from input — it's auto-generated now
+
+
+def generate_next_branch_code(db: Session) -> str:
+    last_branch = (
+        db.query(Branch)
+        .filter(Branch.BranchCode.like("BR-%"))
+        .order_by(Branch.BranchID.desc())
+        .first()
+    )
+
+    if not last_branch or not last_branch.BranchCode:
+        return "BR-001"
+
+    try:
+        last_number = int(last_branch.BranchCode.split("-")[1])
+    except (IndexError, ValueError):
+        last_number = 0
+
+    next_number = last_number + 1
+    return f"BR-{next_number:03d}"   # BR-001, BR-004, BR-025, etc.
 
 
 @router.post("/branches")
 def create_branch(payload: BranchCreateInput, db: Session = Depends(get_db)):
+    next_code = generate_next_branch_code(db)
+
     branch = Branch(
         CompanyID=payload.CompanyID,
+        BranchCode=next_code,
         BranchName=payload.BranchName,
-        BranchCode=payload.BranchCode,
         ManagerName=payload.ManagerName,
         Phone=payload.Phone,
         Address=payload.Address,
@@ -84,8 +108,12 @@ def create_branch(payload: BranchCreateInput, db: Session = Depends(get_db)):
     db.add(branch)
     db.commit()
     db.refresh(branch)
-    return {"id": branch.BranchID, "name": branch.BranchName}
 
+    return {
+        "id": branch.BranchID,
+        "name": branch.BranchName,
+        "code": branch.BranchCode,
+    }
 # --- Static/lookup routes MUST come before /{purchase_id} ---
 
 
