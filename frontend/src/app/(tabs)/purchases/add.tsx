@@ -22,14 +22,16 @@ import { getSuppliers, Supplier } from "../../../services/supplierApi";
 import { getProducts, Product } from "../../../services/productApi";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { createBranch } from "../../../services/purchaseApi";
-
-
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { getSizes, getNextPurchaseNo } from "../../../services/purchaseApi";
 type DiscountType = "percent" | "fixed";
 
 type ItemRow = {
   key: string;
   ProductID?: number;
   ProductName: string;
+  SizeID?: number;
+  SizeName: string;
   BatchNo: string;
   Qty: string;
   UnitPrice: string;
@@ -47,6 +49,7 @@ const PAYMENT_TERMS: Lookup[] = [
 const emptyRow = (): ItemRow => ({
   key: Math.random().toString(36).slice(2),
   ProductName: "",
+  SizeName: "",
   BatchNo: "",
   Qty: "0",
   UnitPrice: "0",
@@ -132,6 +135,12 @@ export default function NewPurchaseScreen() {
   const [newBranchAddress, setNewBranchAddress] = useState("");
   const [savingBranch, setSavingBranch] = useState(false);
 
+  const [sizes, setSizes] = useState<Lookup[]>([]);
+  const [purchaseNoPreview, setPurchaseNoPreview] = useState(
+    "Auto-generated on save",
+  );
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
   const handleAddBranch = async () => {
     if (!newBranchName.trim()) {
       Alert.alert("Missing field", "Branch Name is required.");
@@ -174,14 +183,16 @@ export default function NewPurchaseScreen() {
   useEffect(() => {
     (async () => {
       try {
-        const [sup, br, prod] = await Promise.all([
+        const [sup, br, prod, sz] = await Promise.all([
           getSuppliers(),
           getBranches(),
           getProducts(),
+          getSizes(),
         ]);
         setSuppliers(sup);
         setBranches(br);
         setProducts(prod);
+        setSizes(sz);
         if (br.length > 0) setBranchId(br[0].id);
       } catch (err) {
         console.error(err);
@@ -191,6 +202,13 @@ export default function NewPurchaseScreen() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    if (!purchaseDate) return;
+    getNextPurchaseNo(purchaseDate)
+      .then(setPurchaseNoPreview)
+      .catch(() => setPurchaseNoPreview("Auto-generated on save"));
+  }, [purchaseDate]);
 
   const updateItem = (
     key: string,
@@ -218,6 +236,15 @@ export default function NewPurchaseScreen() {
     setProductPickerFor(null);
   };
 
+  const selectSizeForRow = (key: string, size: Lookup) => {
+    setItems((prev) =>
+      prev.map((row) =>
+        row.key === key
+          ? { ...row, SizeID: size.id, SizeName: size.name }
+          : row,
+      ),
+    );
+  };
   const addRow = () => setItems((prev) => [...prev, emptyRow()]);
 
   const removeRow = (key: string) => {
@@ -305,6 +332,7 @@ export default function NewPurchaseScreen() {
         PaymentStatus: "Paid",
         items: validItems.map((row) => ({
           ProductID: row.ProductID!,
+          SizeID: row.SizeID,
           BatchNo: row.BatchNo,
           Qty: parseFloat(row.Qty) || 0,
           UnitPrice: parseFloat(row.UnitPrice) || 0,
@@ -386,8 +414,8 @@ export default function NewPurchaseScreen() {
             Purchase No
           </Text>
           <View className="border border-gray-200 rounded-xl px-3 py-3 bg-gray-100">
-            <Text className="text-sm text-gray-500">
-              Auto-generated on save
+            <Text className="text-sm text-gray-700 font-medium">
+              {purchaseNoPreview}
             </Text>
           </View>
         </View>
@@ -396,12 +424,29 @@ export default function NewPurchaseScreen() {
           <Text className="text-sm font-medium text-gray-700 mb-1.5">
             Purchase Date <Text className="text-red-500">*</Text>
           </Text>
-          <TextInput
-            value={purchaseDate}
-            onChangeText={setPurchaseDate}
-            placeholder="YYYY-MM-DD"
-            className="border border-gray-200 rounded-xl px-3 py-3 text-sm text-gray-800 bg-white"
-          />
+          <TouchableOpacity
+            onPress={() => setShowDatePicker(true)}
+            className="flex-row items-center justify-between border border-gray-200 rounded-xl px-3 py-3 bg-white"
+          >
+            <Text className="text-sm text-gray-800">{purchaseDate}</Text>
+            <Ionicons name="calendar-outline" size={18} color="#9CA3AF" />
+          </TouchableOpacity>
+
+          {showDatePicker && (
+            <DateTimePicker
+              value={new Date(purchaseDate)}
+              mode="date"
+              display={Platform.OS === "ios" ? "spinner" : "default"}
+              onChange={(event, selectedDate) => {
+                setShowDatePicker(Platform.OS === "ios"); // stays open on iOS until dismissed
+                if (event.type === "set" && selectedDate) {
+                  setPurchaseDate(selectedDate.toISOString().split("T")[0]);
+                } else if (Platform.OS === "android") {
+                  setShowDatePicker(false);
+                }
+              }}
+            />
+          )}
         </View>
         <View className="flex-row items-start">
           <View className="flex-1 mr-2">
@@ -530,6 +575,19 @@ export default function NewPurchaseScreen() {
                   keyboardType="numeric"
                   placeholder="0"
                   className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 bg-white"
+                />
+              </View>
+
+              <View className="flex-1 mr-2">
+                <Dropdown
+                  label="Size"
+                  placeholder="Select size"
+                  options={sizes}
+                  selectedId={row.SizeID}
+                  onSelect={(id) => {
+                    const size = sizes.find((s) => s.id === id);
+                    if (size) selectSizeForRow(row.key, size);
+                  }}
                 />
               </View>
               <View className="flex-1">

@@ -10,6 +10,7 @@ class PurchaseItemBase(BaseModel):
     UnitPrice: float
     DiscountPercent: Optional[float] = 0
     LineTotal: float
+    SizeID: Optional[int] = None
 
 
 class PurchaseItemCreate(PurchaseItemBase):
@@ -19,7 +20,7 @@ class PurchaseItemCreate(PurchaseItemBase):
 class PurchaseItemOut(PurchaseItemBase):
     PurchaseItemID: int
     ProductName: Optional[str] = None  # populated manually in router
-
+    SizeName: Optional[str] = None  # populated manually in router
     class Config:
         from_attributes = True
 

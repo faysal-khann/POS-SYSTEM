@@ -6,7 +6,7 @@ from datetime import date
 from pydantic import BaseModel
 
 from ..database import get_db
-from ..models.purchase import Purchase, PurchaseItem, Branch
+from ..models.purchase import Purchase, PurchaseItem, Branch, Size
 from ..models.supplier import Supplier
 from ..schemas.purchase import PurchaseCreate, PurchaseOut, PurchaseListItem
 
@@ -114,6 +114,17 @@ def create_branch(payload: BranchCreateInput, db: Session = Depends(get_db)):
         "name": branch.BranchName,
         "code": branch.BranchCode,
     }
+
+@router.get("/sizes")
+def get_sizes(db: Session = Depends(get_db)):
+    rows = db.query(Size).filter(Size.Status == "Active").order_by(Size.SortOrder).all()
+    return [{"id": s.SizeID, "name": s.SizeName} for s in rows]
+
+
+@router.get("/next-number")
+def preview_next_number(purchase_date: date = Query(...), db: Session = Depends(get_db)):
+    return {"purchase_no": generate_purchase_no(db, purchase_date)}
+
 # --- Static/lookup routes MUST come before /{purchase_id} ---
 
 
@@ -126,7 +137,7 @@ def get_branches(db: Session = Depends(get_db)):
 
 @router.post("/", response_model=PurchaseOut)
 def create_purchase(payload: PurchaseCreate, db: Session = Depends(get_db)):
-    new_no = generate_purchase_no(db)
+    new_no = generate_purchase_no(db, payload.PurchaseDate)
 
     purchase = Purchase(
         PurchaseNo=new_no,
@@ -153,6 +164,7 @@ def create_purchase(payload: PurchaseCreate, db: Session = Depends(get_db)):
         db.add(PurchaseItem(
             PurchaseID=purchase.PurchaseID,
             ProductID=item.ProductID,
+            SizeID=item.SizeID,
             BatchNo=item.BatchNo,
             Qty=item.Qty,
             UnitPrice=item.UnitPrice,
@@ -170,10 +182,13 @@ def create_purchase(payload: PurchaseCreate, db: Session = Depends(get_db)):
 @router.get("/{purchase_id}", response_model=PurchaseOut)
 def get_purchase(purchase_id: int, db: Session = Depends(get_db)):
     purchase = (
-        db.query(Purchase)
-        .options(joinedload(Purchase.items).joinedload(PurchaseItem.product))
-        .filter(Purchase.PurchaseID == purchase_id)
-        .first()
+    db.query(Purchase)
+    .options(
+        joinedload(Purchase.items).joinedload(PurchaseItem.product),
+        joinedload(Purchase.items).joinedload(PurchaseItem.size),
+    )
+    .filter(Purchase.PurchaseID == purchase_id)
+    .first()
     )
     if not purchase:
         raise HTTPException(status_code=404, detail="Purchase not found")
@@ -181,6 +196,7 @@ def get_purchase(purchase_id: int, db: Session = Depends(get_db)):
     out = PurchaseOut.model_validate(purchase)
     for i, item in enumerate(purchase.items):
         out.items[i].ProductName = item.product.ProductName if item.product else None
+        out.items[i].SizeName = item.size.SizeName if item.size else None
     return out
 
 
@@ -192,3 +208,7 @@ def delete_purchase(purchase_id: int, db: Session = Depends(get_db)):
     db.delete(purchase)
     db.commit()
     return {"message": "Purchase deleted successfully"}
+
+def generate_purchase_no(db: Session, purchase_date: date) -> str:
+    last = db.query(func.max(Purchase.PurchaseID)).scalar() or 0
+    return f"PUR-{purchase_date.strftime('%y')}{purchase_date.strftime('%m')}{last + 1:04d}"

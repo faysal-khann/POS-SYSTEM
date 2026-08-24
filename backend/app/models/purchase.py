@@ -70,7 +70,17 @@ class PurchaseItem(Base):
     UnitPrice = Column(Numeric(18, 2), nullable=False)
     DiscountPercent = Column(Numeric(5, 2), default=0)
     LineTotal = Column(Numeric(18, 2), nullable=False)
+    SizeID = Column(Integer, ForeignKey("Sizes.SizeID"), nullable=True)
 
     purchase = relationship("Purchase", back_populates="items")
     product = relationship("Product")
+    size = relationship("Size")
+    
 
+class Size(Base):
+    __tablename__ = "Sizes"
+    SizeID = Column(Integer, primary_key=True, autoincrement=True)
+    SizeName = Column(String(50), nullable=False)
+    SizeCode = Column(String(20))
+    SortOrder = Column(Integer, default=0)
+    Status = Column(String(20), default="Active")

@@ -25,7 +25,9 @@ export type PurchaseFilters = {
   status?: string;
 };
 
-export const getPurchases = async (filters: PurchaseFilters = {}): Promise<PurchaseListItem[]> => {
+export const getPurchases = async (
+  filters: PurchaseFilters = {},
+): Promise<PurchaseListItem[]> => {
   const res = await purchaseApi.get("/purchases/", { params: filters });
   return res.data;
 };
@@ -35,8 +37,6 @@ export const deletePurchase = async (id: number) => {
   return res.data;
 };
 
-
-
 export const getBranches = async (): Promise<Lookup[]> => {
   const res = await purchaseApi.get("/purchases/branches");
   return res.data;
@@ -45,13 +45,13 @@ export const getBranches = async (): Promise<Lookup[]> => {
 export type PurchaseItemInput = {
   ProductID: number;
   ProductName: string; // for display only, not sent to backend as-is
+  SizeID?: number;
   BatchNo?: string;
   Qty: number;
   UnitPrice: number;
   DiscountPercent: number;
   LineTotal: number;
 };
-
 export type PurchaseCreateInput = {
   CompanyID: number;
   BranchID: number;
@@ -70,6 +70,7 @@ export type PurchaseCreateInput = {
   PaymentStatus: string;
   items: {
     ProductID: number;
+    SizeID?: number;
     BatchNo?: string;
     Qty: number;
     UnitPrice: number;
@@ -91,7 +92,9 @@ export type BranchCreateInput = {
   Address?: string;
 };
 
-export const createBranch = async (data: BranchCreateInput): Promise<Lookup & { code: string }> => {
+export const createBranch = async (
+  data: BranchCreateInput,
+): Promise<Lookup & { code: string }> => {
   const res = await purchaseApi.post("/purchases/branches", data);
   return res.data;
 };
