@@ -13,10 +13,14 @@ from ..schemas.purchase import PurchaseCreate, PurchaseOut, PurchaseListItem
 router = APIRouter(prefix="/purchases", tags=["Purchases"])
 
 
-def generate_purchase_no(db: Session) -> str:
-    last = db.query(func.max(Purchase.PurchaseID)).scalar() or 0
-    year = date.today().strftime("%y")
-    return f"PUR-{year}{date.today().month:02d}{last + 1:04d}"
+def generate_purchase_no(db: Session, purchase_date: date) -> str:
+    date_str = purchase_date.strftime("%Y%m%d")
+    count_for_day = (
+        db.query(func.count(Purchase.PurchaseID))
+        .filter(Purchase.PurchaseDate == purchase_date)
+        .scalar() or 0
+    )
+    return f"PUR-{date_str}{count_for_day + 1:06d}"
 
 
 @router.get("/", response_model=List[PurchaseListItem])

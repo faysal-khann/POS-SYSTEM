@@ -51,6 +51,24 @@ const customerSubItems = [
   "Loyalty Points",
 ];
 
+const inventorySubItems = [
+  "Current Stock",
+  "Stock In",
+  "Stock Out",
+  "Stock Adjustment",
+  "Low Stock Alert",
+  "Stock Count",
+];
+
+const inventoryRoutes: Record<string, string> = {
+  "Current Stock": "/inventory",
+  "Stock In": "/inventory/stock-in",
+  "Stock Out": "/inventory/stock-out",
+  "Stock Adjustment": "/inventory/stock-adjustment",
+  "Low Stock Alert": "/inventory/low-stock",
+  "Stock Count": "/inventory/stock-count",
+};
+
 const productRoutes: Record<string, string> = {
   "Product List": "/products",
   "Add Product": "/products/add",
@@ -79,6 +97,7 @@ const purchaseRoutes: Record<string, string> = {
   "Purchase Returns": "/purchases/returns",
   "Supplier Dues": "/purchases/supplier-dues",
 };
+
 const bottomItems = [
   { label: "Reports", icon: "document-text-outline" },
   { label: "Expenses", icon: "wallet-outline" },
@@ -92,7 +111,7 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
   const [suppliersOpen, setSuppliersOpen] = useState(false);
   const [customersOpen, setCustomersOpen] = useState(false);
   const [purchaseOpen, setPurchaseOpen] = useState(false);
-
+  const [inventoryOpen, setInventoryOpen] = useState(false);
   useEffect(() => {
     Animated.timing(translateX, {
       toValue: visible ? 0 : MENU_WIDTH,
@@ -166,21 +185,52 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
               </TouchableOpacity>
             ))}
 
-          {/* Inventory, Purchase */}
-          {menuItems.slice(2).map((item) => (
-            <TouchableOpacity
-              key={item.label}
-              className="flex-row items-center py-3 px-2 rounded-lg mb-1"
-            >
-              <Ionicons name={item.icon as any} size={18} color="#9CA3AF" />
-              <Text className="text-gray-300 ml-3 text-sm">{item.label}</Text>
-            </TouchableOpacity>
-          ))}
+        
+
+          {/* Inventory - expandable */}
+          <TouchableOpacity
+            onPress={() => setInventoryOpen(!inventoryOpen)}
+            className={`flex-row items-center justify-between py-3 px-2 rounded-lg mb-1 ${
+              inventoryOpen ? "bg-blue-600" : ""
+            }`}
+          >
+            <View className="flex-row items-center">
+              <Ionicons name="layers-outline" size={18} color="#fff" />
+              <Text className="text-white ml-3 text-sm font-medium">
+                Inventory
+              </Text>
+            </View>
+
+            <Ionicons
+              name={inventoryOpen ? "chevron-up" : "chevron-down"}
+              size={14}
+              color="#fff"
+            />
+          </TouchableOpacity>
+
+          {inventoryOpen &&
+            inventorySubItems.map((sub) => (
+              <TouchableOpacity
+                key={sub}
+                onPress={() => {
+                  onClose();
+
+                  const route = inventoryRoutes[sub];
+
+                  if (route) {
+                    router.push(route as any);
+                  }
+                }}
+                className="py-2.5 pl-10 pr-2 rounded-lg mb-1"
+              >
+                <Text className="text-gray-400 text-sm">{sub}</Text>
+              </TouchableOpacity>
+            ))}
 
           {/* Purchase - expandable */}
           <TouchableOpacity
             onPress={() => setPurchaseOpen(!purchaseOpen)}
-             className={`flex-row items-center justify-between py-3 px-2 rounded-lg mb-1 ${
+            className={`flex-row items-center justify-between py-3 px-2 rounded-lg mb-1 ${
               purchaseOpen ? "bg-blue-600" : ""
             }`}
           >
@@ -217,7 +267,7 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
           {/* Suppliers - expandable */}
           <TouchableOpacity
             onPress={() => setSuppliersOpen(!suppliersOpen)}
-             className={`flex-row items-center justify-between py-3 px-2 rounded-lg mb-1 ${
+            className={`flex-row items-center justify-between py-3 px-2 rounded-lg mb-1 ${
               suppliersOpen ? "bg-blue-600" : ""
             }`}
           >
