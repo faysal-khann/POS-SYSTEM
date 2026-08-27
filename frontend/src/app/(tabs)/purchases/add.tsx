@@ -172,14 +172,20 @@ export default function NewPurchaseScreen() {
     }
   };
 
-  const filteredProducts = products.filter((p) => {
-    const search = productSearch.toLowerCase();
+  const selectedProductIds = new Set(
+  items
+    .filter((row) => row.key !== productPickerFor && row.ProductID)
+    .map((row) => row.ProductID),
+);
 
-    return (
-      p.ProductName?.toLowerCase().includes(search) ||
-      p.ProductCode?.toLowerCase().includes(search)
-    );
-  });
+const filteredProducts = products.filter((p) => {
+  const search = productSearch.toLowerCase();
+  const matchesSearch =
+    p.ProductName?.toLowerCase().includes(search) ||
+    p.ProductCode?.toLowerCase().includes(search);
+
+  return matchesSearch && !selectedProductIds.has(p.ProductID);
+});
   useEffect(() => {
     (async () => {
       try {

@@ -11,6 +11,7 @@ from .routers import categories
 from .routers import brands
 from .routers import units
 from .routers import purchases
+from .routers import stock
 load_dotenv()
 
 app = FastAPI()
@@ -27,7 +28,7 @@ app.add_middleware(
 app.include_router(suppliers.router)
 app.include_router(customers.router)
 app.include_router(products.router)
-
+app.include_router(stock.router)
 app.include_router(purchases.router)
 app.include_router(units.router)
 app.include_router(brands.router)

@@ -61,7 +61,7 @@ const inventorySubItems = [
 ];
 
 const inventoryRoutes: Record<string, string> = {
-  "Current Stock": "/inventory",
+  "Current Stock": "/inventory/current-stock",
   "Stock In": "/inventory/stock-in",
   "Stock Out": "/inventory/stock-out",
   "Stock Adjustment": "/inventory/stock-adjustment",

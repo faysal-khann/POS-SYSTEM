@@ -4,7 +4,7 @@ from sqlalchemy import func
 from typing import List, Optional
 from datetime import date
 from pydantic import BaseModel
-
+from ..models.stock import ProductStock, StockMovement
 from ..database import get_db
 from ..models.purchase import Purchase, PurchaseItem, Branch, Size
 from ..models.supplier import Supplier
@@ -174,6 +174,41 @@ def create_purchase(payload: PurchaseCreate, db: Session = Depends(get_db)):
             UnitPrice=item.UnitPrice,
             DiscountPercent=item.DiscountPercent,
             LineTotal=item.LineTotal,
+        ))
+
+        # find or create the stock row for this product + branch
+        stock = (
+            db.query(ProductStock)
+            .filter(
+                ProductStock.ProductID == item.ProductID,
+                ProductStock.BranchID == payload.BranchID,
+            )
+            .first()
+        )
+        previous_balance = stock.CurrentStock if stock else 0
+        new_balance = previous_balance + item.Qty
+
+        if stock:
+            stock.CurrentStock = new_balance
+        else:
+            stock = ProductStock(
+                ProductID=item.ProductID,
+                BranchID=payload.BranchID,
+                CurrentStock=new_balance,
+            )
+            db.add(stock)
+            db.flush()  # populate stock.ProductStockID before we reference it
+
+        db.add(StockMovement(
+            ProductStockID=stock.ProductStockID,
+            BranchID=payload.BranchID,
+            ProductID=item.ProductID,
+            MovementType="Purchase",
+            ReferenceType="Purchase",
+            ReferenceID=purchase.PurchaseID,
+            QtyIn=item.Qty,
+            QtyOut=0,
+            BalanceQty=new_balance,
         ))
 
     db.commit()
