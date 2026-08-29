@@ -19,3 +19,37 @@ class StockListItem(BaseModel):
 
     class Config:
         from_attributes = True
+from datetime import datetime
+
+
+class StockDetail(BaseModel):
+    ProductStockID: int
+    ProductID: int
+    ProductCode: str
+    ProductName: str
+    CategoryName: Optional[str] = None
+    BrandName: Optional[str] = None
+    UnitShortName: Optional[str] = None
+    Barcode: Optional[str] = None
+    BranchID: int
+    BranchName: str
+    CurrentStock: int
+    ReservedStock: int
+    ReorderLevel: int
+    MaximumLevel: int
+    PurchasePrice: float
+    StockValue: float
+    Status: str
+    LastUpdatedAt: datetime
+    ImageUrl: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class StockUpdate(BaseModel):
+    BranchID: int
+    CurrentStock: int
+    ReservedStock: Optional[int] = 0
+    ReorderLevel: Optional[int] = 0
+    MaximumLevel: Optional[int] = 0

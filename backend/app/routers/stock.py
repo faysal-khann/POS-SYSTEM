@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends, Query
+
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
-
+from fastapi import APIRouter, Depends, Query, HTTPException
 from ..database import get_db
 from ..models.stock import ProductStock
 from ..models.product import Product
-from ..schemas.stock import StockListItem
+from ..schemas.stock import StockListItem, StockDetail, StockUpdate
 
 router = APIRouter(prefix="/stock", tags=["Stock"])
 
@@ -62,3 +62,60 @@ def get_stock(
             Status=status,
         ))
     return result
+
+
+@router.get("/{stock_id}", response_model=StockDetail)
+def get_stock_detail(stock_id: int, db: Session = Depends(get_db)):
+    r = (
+        db.query(ProductStock)
+        .options(
+            joinedload(ProductStock.product).joinedload(Product.category),
+            joinedload(ProductStock.product).joinedload(Product.brand),
+            joinedload(ProductStock.product).joinedload(Product.unit),
+            joinedload(ProductStock.branch),
+        )
+        .filter(ProductStock.ProductStockID == stock_id)
+        .first()
+    )
+    if not r:
+        raise HTTPException(status_code=404, detail="Stock record not found")
+
+    status = "Low Stock" if r.CurrentStock <= r.ReorderLevel else "In Stock"
+    return StockDetail(
+        ProductStockID=r.ProductStockID,
+        ProductID=r.ProductID,
+        ProductCode=r.product.ProductCode,
+        ProductName=r.product.ProductName,
+        CategoryName=r.product.category.CategoryName if r.product.category else None,
+        BrandName=r.product.brand.BrandName if r.product.brand else None,
+        UnitShortName=r.product.unit.ShortName if r.product.unit else None,
+        Barcode=r.product.Barcode,
+        BranchID=r.BranchID,
+        BranchName=r.branch.BranchName,
+        CurrentStock=r.CurrentStock,
+        ReservedStock=r.ReservedStock,
+        ReorderLevel=r.ReorderLevel,
+        MaximumLevel=r.MaximumLevel,
+        PurchasePrice=float(r.product.PurchasePrice),
+        StockValue=float(r.CurrentStock) * float(r.product.PurchasePrice),
+        Status=status,
+        LastUpdatedAt=r.LastUpdatedAt,
+        ImageUrl=r.product.ImageUrl,
+    )
+
+
+@router.put("/{stock_id}", response_model=StockDetail)
+def update_stock(stock_id: int, payload: StockUpdate, db: Session = Depends(get_db)):
+    stock = db.query(ProductStock).filter(ProductStock.ProductStockID == stock_id).first()
+    if not stock:
+        raise HTTPException(status_code=404, detail="Stock record not found")
+
+    stock.BranchID = payload.BranchID
+    stock.CurrentStock = payload.CurrentStock
+    stock.ReservedStock = payload.ReservedStock or 0
+    stock.ReorderLevel = payload.ReorderLevel or 0
+    stock.MaximumLevel = payload.MaximumLevel or 0
+    db.commit()
+    db.refresh(stock)
+
+    return get_stock_detail(stock_id, db)

@@ -1,19 +1,21 @@
-import { View, Text } from "react-native";
+import { View, Text, TouchableOpacity } from "react-native";
+import { router } from "expo-router";
 import { StockListItem } from "../services/stockApi";
 
 export default function StockCard({ item }: { item: StockListItem }) {
   const isLow = item.Status === "Low Stock";
 
   return (
-    <View className="bg-white border border-gray-200 rounded-xl p-4 mb-3">
+    <TouchableOpacity
+      onPress={() => router.push(`/(tabs)/inventory/current-stock/${item.ProductStockID}`)}
+      className="bg-white border border-gray-200 rounded-xl p-4 mb-3"
+    >
       <View className="flex-row justify-between items-start mb-2">
         <View className="flex-1 mr-2">
           <Text className="text-sm font-semibold text-gray-900">{item.ProductName}</Text>
           <Text className="text-xs text-gray-400">{item.ProductCode}</Text>
         </View>
-        <View
-          className={`px-2.5 py-1 rounded-full ${isLow ? "bg-orange-100" : "bg-green-100"}`}
-        >
+        <View className={`px-2.5 py-1 rounded-full ${isLow ? "bg-orange-100" : "bg-green-100"}`}>
           <Text className={`text-xs font-medium ${isLow ? "text-orange-600" : "text-green-600"}`}>
             {item.Status}
           </Text>
@@ -39,6 +41,6 @@ export default function StockCard({ item }: { item: StockListItem }) {
           ৳ {item.StockValue.toFixed(2)}
         </Text>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
