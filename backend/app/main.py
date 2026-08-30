@@ -13,6 +13,9 @@ from .routers import units
 from .routers import purchases
 from .routers import stock
 from .routers import users
+from .routers import roles
+from .routers import permissions
+
 load_dotenv()
 
 app = FastAPI()
@@ -34,9 +37,10 @@ app.include_router(purchases.router)
 app.include_router(units.router)
 app.include_router(brands.router)
 app.include_router(categories.router)
-
-
+app.include_router(permissions.router)
+app.include_router(roles.router)
 app.include_router(users.router)
+
 os.makedirs("uploads/products", exist_ok=True)
 
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")

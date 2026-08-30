@@ -108,8 +108,8 @@ const usersRolesSubItems = ["Users", "Roles", "Permissions", "Activity Log"];
 
 const usersRolesRoutes: Record<string, string> = {
   Users: "/users",
-  Roles: "/users-roles/roles",
-  Permissions: "/users-roles/permissions",
+  Roles: "/users/roles",
+  Permissions: "/users/permissions",
   "Activity Log": "/users-roles/activity-log",
 };
 export default function SideMenu({ visible, onClose }: SideMenuProps) {
