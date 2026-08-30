@@ -43,3 +43,10 @@ export const deletePermission = async (id: number) => {
   return res.data;
 };
 
+export const createModule = async (moduleName: string): Promise<Lookup> => {
+  const res = await permissionApi.post("/permissions/modules", { ModuleName: moduleName });
+  return res.data;
+};
+
+
+

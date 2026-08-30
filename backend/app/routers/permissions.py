@@ -4,8 +4,8 @@ from typing import List, Optional
 
 from ..database import get_db
 from ..models.user import Permission
-from ..schemas.permission import PermissionListItem, PermissionCreate
 
+from ..schemas.permission import PermissionListItem, PermissionCreate, ModuleCreate, ModuleOut
 router = APIRouter(prefix="/permissions", tags=["Permissions"])
 
 
@@ -83,3 +83,30 @@ def delete_permission(permission_id: int, db: Session = Depends(get_db)):
     db.delete(permission)
     db.commit()
     return {"message": "Permission deleted successfully"}
+
+
+
+
+
+@router.post("/modules", response_model=ModuleOut)
+def create_module(payload: ModuleCreate, db: Session = Depends(get_db)):
+    existing = (
+        db.query(Permission)
+        .filter(Permission.ParentPermissionID.is_(None), Permission.PermissionName == payload.ModuleName)
+        .first()
+    )
+    if existing:
+        raise HTTPException(status_code=400, detail="A module with this name already exists.")
+
+    key = payload.ModuleName.lower().replace(" ", "_")
+    module = Permission(
+        ParentPermissionID=None,
+        PermissionKey=key,
+        PermissionName=payload.ModuleName,
+        Module=payload.ModuleName,
+        Status="Active",
+    )
+    db.add(module)
+    db.commit()
+    db.refresh(module)
+    return {"id": module.PermissionID, "name": module.PermissionName}

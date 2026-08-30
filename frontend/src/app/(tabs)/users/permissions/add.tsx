@@ -11,6 +11,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import Dropdown from "../../../../components/Dropdown";
+import { createModule } from "../../../../services/permissionApi";
 import {
   createPermission,
   getModules,
@@ -32,6 +33,9 @@ export default function AddPermissionScreen() {
   const [description, setDescription] = useState("");
   const [statusId, setStatusId] = useState<number>(1);
 
+  const [showAddModule, setShowAddModule] = useState(false);
+  const [newModuleName, setNewModuleName] = useState("");
+  const [savingModule, setSavingModule] = useState(false);
   useEffect(() => {
     (async () => {
       try {
@@ -45,6 +49,28 @@ export default function AddPermissionScreen() {
       }
     })();
   }, []);
+
+  const handleAddModule = async () => {
+    if (!newModuleName.trim()) {
+      Alert.alert("Missing field", "Module Name is required.");
+      return;
+    }
+
+    try {
+      setSavingModule(true);
+      const created = await createModule(newModuleName);
+      setModules((prev) => [...prev, created]);
+      setModuleId(created.id);
+      setShowAddModule(false);
+      setNewModuleName("");
+    } catch (err: any) {
+      console.error(err);
+      const message = err?.response?.data?.detail || "Couldn't create module.";
+      Alert.alert("Error", message);
+    } finally {
+      setSavingModule(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!permissionName.trim()) {
@@ -70,7 +96,8 @@ export default function AddPermissionScreen() {
       ]);
     } catch (err: any) {
       console.error(err);
-      const message = err?.response?.data?.detail || "Couldn't create permission.";
+      const message =
+        err?.response?.data?.detail || "Couldn't create permission.";
       Alert.alert("Error", message);
     } finally {
       setSaving(false);
@@ -93,7 +120,9 @@ export default function AddPermissionScreen() {
           <TouchableOpacity onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={22} color="#111827" />
           </TouchableOpacity>
-          <Text className="text-lg font-semibold text-gray-900 ml-3">Add Permission</Text>
+          <Text className="text-lg font-semibold text-gray-900 ml-3">
+            Add Permission
+          </Text>
         </View>
         <TouchableOpacity
           onPress={handleSave}
@@ -105,13 +134,18 @@ export default function AddPermissionScreen() {
           ) : (
             <>
               <Ionicons name="save-outline" size={14} color="#fff" />
-              <Text className="text-white text-sm font-medium ml-1.5">Save</Text>
+              <Text className="text-white text-sm font-medium ml-1.5">
+                Save
+              </Text>
             </>
           )}
         </TouchableOpacity>
       </View>
 
-      <ScrollView className="flex-1 px-4 pt-4" contentContainerStyle={{ paddingBottom: 60 }}>
+      <ScrollView
+        className="flex-1 px-4 pt-4"
+        contentContainerStyle={{ paddingBottom: 60 }}
+      >
         <Text className="text-base font-semibold text-gray-900 mb-3">
           Permission Information
         </Text>
@@ -129,17 +163,32 @@ export default function AddPermissionScreen() {
           />
         </View>
 
-        <Dropdown
-          label="Module"
-          placeholder="Select module"
-          required
-          options={modules}
-          selectedId={moduleId}
-          onSelect={setModuleId}
-        />
+        <View className="flex-row items-start">
+          <View className="flex-1 mr-2">
+            <Dropdown
+              label="Module"
+              placeholder="Select module"
+              required
+              options={modules}
+              selectedId={moduleId}
+              onSelect={setModuleId}
+            />
+          </View>
+
+          <TouchableOpacity
+            onPress={() => setShowAddModule(true)}
+            className="w-10 h-10 rounded-xl bg-blue-600 items-center justify-center mt-[24px]"
+          >
+            <Ionicons name="add" size={22} color="#fff" />
+          </TouchableOpacity>
+        </View>
+
+        
 
         <View className="mb-4">
-          <Text className="text-sm font-medium text-gray-700 mb-1.5">Description</Text>
+          <Text className="text-sm font-medium text-gray-700 mb-1.5">
+            Description
+          </Text>
           <TextInput
             value={description}
             onChangeText={setDescription}
@@ -161,6 +210,44 @@ export default function AddPermissionScreen() {
           onSelect={setStatusId}
         />
       </ScrollView>
+
+      {showAddModule && (
+  <View className="absolute inset-0 bg-black/40 justify-center items-center px-6">
+    <View className="bg-white rounded-2xl w-full max-w-sm p-5">
+      <View className="flex-row items-center justify-between mb-4">
+        <Text className="text-lg font-semibold text-gray-900">Add Module</Text>
+        <TouchableOpacity onPress={() => setShowAddModule(false)}>
+          <Ionicons name="close" size={22} color="#6B7280" />
+        </TouchableOpacity>
+      </View>
+
+      <View className="mb-5">
+        <Text className="text-sm font-medium text-gray-700 mb-1.5">
+          Module Name <Text className="text-red-500">*</Text>
+        </Text>
+        <TextInput
+          value={newModuleName}
+          onChangeText={setNewModuleName}
+          placeholder="Enter module name"
+          placeholderTextColor="#9CA3AF"
+          className="border border-gray-200 rounded-xl px-3 py-3 text-sm text-gray-800 bg-white"
+        />
+      </View>
+
+      <TouchableOpacity
+        onPress={handleAddModule}
+        disabled={savingModule}
+        className="bg-blue-600 rounded-xl py-3 items-center flex-row justify-center"
+      >
+        {savingModule ? (
+          <ActivityIndicator size="small" color="#fff" />
+        ) : (
+          <Text className="text-white font-semibold">Save Module</Text>
+        )}
+      </TouchableOpacity>
+    </View>
+  </View>
+)}
     </View>
   );
 }

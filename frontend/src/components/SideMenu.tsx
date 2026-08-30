@@ -112,6 +112,22 @@ const usersRolesRoutes: Record<string, string> = {
   Permissions: "/users/permissions",
   "Activity Log": "/users-roles/activity-log",
 };
+
+const settingsSubItems = [
+  "Company Info",
+  "Branch / Outlet",
+  "Tax & VAT",
+  "Invoice Template",
+  "Backup & Restore",
+];
+
+const settingsRoutes: Record<string, string> = {
+  "Company Info": "/settings/company-info",
+  "Branch / Outlet": "/settings/branches",
+  "Tax & VAT": "/settings/tax-vat",
+  "Invoice Template": "/settings/invoice-template",
+  "Backup & Restore": "/settings/backup-restore",
+};
 export default function SideMenu({ visible, onClose }: SideMenuProps) {
   const translateX = useRef(new Animated.Value(MENU_WIDTH)).current;
   const [productsOpen, setProductsOpen] = useState(true);
@@ -120,6 +136,7 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
   const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [usersRolesOpen, setUsersRolesOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   useEffect(() => {
     Animated.timing(translateX, {
       toValue: visible ? 0 : MENU_WIDTH,
@@ -381,15 +398,60 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
               </TouchableOpacity>
             ))}
 
-          {bottomItems.map((item) => (
-            <TouchableOpacity
-              key={item.label}
-              className="flex-row items-center py-3 px-2 rounded-lg mb-1"
-            >
-              <Ionicons name={item.icon as any} size={18} color="#9CA3AF" />
-              <Text className="text-gray-300 ml-3 text-sm">{item.label}</Text>
-            </TouchableOpacity>
-          ))}
+         
+          {/* Reports */}
+          <TouchableOpacity className="flex-row items-center py-3 px-2 rounded-lg mb-1">
+            <Ionicons name="document-text-outline" size={18} color="#9CA3AF" />
+            <Text className="text-gray-300 ml-3 text-sm">Reports</Text>
+          </TouchableOpacity>
+
+          {/* Expenses */}
+          <TouchableOpacity className="flex-row items-center py-3 px-2 rounded-lg mb-1">
+            <Ionicons name="wallet-outline" size={18} color="#9CA3AF" />
+            <Text className="text-gray-300 ml-3 text-sm">Expenses</Text>
+          </TouchableOpacity>
+
+          {/* Settings - expandable */}
+          <TouchableOpacity
+            onPress={() => setSettingsOpen(!settingsOpen)}
+            className={`flex-row items-center justify-between py-3 px-2 rounded-lg mb-1 ${
+              settingsOpen ? "bg-blue-600" : ""
+            }`}
+          >
+            <View className="flex-row items-center">
+              <Ionicons name="settings-outline" size={18} color="#fff" />
+
+              <Text className="text-white ml-3 text-sm font-medium">
+                Settings
+              </Text>
+            </View>
+
+            <Ionicons
+              name={settingsOpen ? "chevron-up" : "chevron-down"}
+              size={14}
+              color="#fff"
+            />
+          </TouchableOpacity>
+
+          {/* Settings Sub Items */}
+          {settingsOpen &&
+            settingsSubItems.map((sub) => (
+              <TouchableOpacity
+                key={sub}
+                onPress={() => {
+                  onClose();
+
+                  const route = settingsRoutes[sub];
+
+                  if (route) {
+                    router.push(route as any);
+                  }
+                }}
+                className="py-2.5 pl-10 pr-2 rounded-lg mb-1"
+              >
+                <Text className="text-gray-400 text-sm">{sub}</Text>
+              </TouchableOpacity>
+            ))}
         </ScrollView>
       </Animated.View>
     </SafeAreaView>

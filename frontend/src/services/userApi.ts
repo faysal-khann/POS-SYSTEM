@@ -70,3 +70,49 @@ export const createUser = async (data: UserCreateInput) => {
   const res = await userApi.post("/users/", data);
   return res.data;
 };
+
+export type UserDetail = {
+  UserID: number;
+  FullName: string;
+  Username: string;
+  Email: string;
+  Phone: string | null;
+  RoleID: number;
+  RoleName: string;
+  PrimaryBranchID: number;
+  BranchName: string;
+  EmployeeID: string | null;
+  Designation: string | null;
+  Address: string | null;
+  Notes: string | null;
+  Status: string;
+  LastLoginAt: string | null;
+  PermissionIDs: number[];
+};
+
+export type UserUpdateInput = {
+  FullName: string;
+  Username: string;
+  Email: string;
+  Phone?: string;
+  Password?: string;
+  ConfirmPassword?: string;
+  RoleID: number;
+  PrimaryBranchID: number;
+  EmployeeID?: string;
+  Designation?: string;
+  Address?: string;
+  Notes?: string;
+  Status: string;
+  PermissionIDs: number[];
+};
+
+export const getUserDetail = async (id: number): Promise<UserDetail> => {
+  const res = await userApi.get(`/users/${id}`);
+  return res.data;
+};
+
+export const updateUser = async (id: number, data: UserUpdateInput) => {
+  const res = await userApi.put(`/users/${id}`, data);
+  return res.data;
+};
