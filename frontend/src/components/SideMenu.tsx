@@ -104,7 +104,14 @@ const bottomItems = [
   { label: "Users & Roles", icon: "person-outline" },
   { label: "Settings", icon: "settings-outline" },
 ];
+const usersRolesSubItems = ["Users", "Roles", "Permissions", "Activity Log"];
 
+const usersRolesRoutes: Record<string, string> = {
+  Users: "/users",
+  Roles: "/users-roles/roles",
+  Permissions: "/users-roles/permissions",
+  "Activity Log": "/users-roles/activity-log",
+};
 export default function SideMenu({ visible, onClose }: SideMenuProps) {
   const translateX = useRef(new Animated.Value(MENU_WIDTH)).current;
   const [productsOpen, setProductsOpen] = useState(true);
@@ -112,6 +119,7 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
   const [customersOpen, setCustomersOpen] = useState(false);
   const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(false);
+  const [usersRolesOpen, setUsersRolesOpen] = useState(false);
   useEffect(() => {
     Animated.timing(translateX, {
       toValue: visible ? 0 : MENU_WIDTH,
@@ -184,8 +192,6 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
                 <Text className="text-gray-400 text-sm">{sub}</Text>
               </TouchableOpacity>
             ))}
-
-        
 
           {/* Inventory - expandable */}
           <TouchableOpacity
@@ -328,6 +334,43 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
                 onPress={() => {
                   onClose();
                   const route = customerRoutes[sub];
+                  if (route) {
+                    router.push(route as any);
+                  }
+                }}
+                className="py-2.5 pl-10 pr-2 rounded-lg mb-1"
+              >
+                <Text className="text-gray-400 text-sm">{sub}</Text>
+              </TouchableOpacity>
+            ))}
+
+          {/* Users & Roles - expandable */}
+          <TouchableOpacity
+            onPress={() => setUsersRolesOpen(!usersRolesOpen)}
+            className={`flex-row items-center justify-between py-3 px-2 rounded-lg mb-1 ${
+              usersRolesOpen ? "bg-blue-600" : ""
+            }`}
+          >
+            <View className="flex-row items-center">
+              <Ionicons name="person-outline" size={18} color="#fff" />
+              <Text className="text-white ml-3 text-sm font-medium">
+                Users & Roles
+              </Text>
+            </View>
+            <Ionicons
+              name={usersRolesOpen ? "chevron-up" : "chevron-down"}
+              size={14}
+              color="#fff"
+            />
+          </TouchableOpacity>
+
+          {usersRolesOpen &&
+            usersRolesSubItems.map((sub) => (
+              <TouchableOpacity
+                key={sub}
+                onPress={() => {
+                  onClose();
+                  const route = usersRolesRoutes[sub];
                   if (route) {
                     router.push(route as any);
                   }
