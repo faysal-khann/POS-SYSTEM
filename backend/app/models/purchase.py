@@ -29,6 +29,7 @@ class Branch(Base):
     Phone = Column(String(50))
     Address = Column(String(300))
     IsActive = Column(Boolean, default=True)
+    Email = Column(String(100))
 
 
 class Purchase(Base):

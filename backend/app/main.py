@@ -16,6 +16,7 @@ from .routers import users
 from .routers import roles
 from .routers import permissions
 from .routers import companies
+from .routers import branches
 
 load_dotenv()
 
@@ -42,6 +43,7 @@ app.include_router(permissions.router)
 app.include_router(roles.router)
 app.include_router(users.router)
 app.include_router(companies.router)
+app.include_router(branches.router)
 
 os.makedirs("uploads/products", exist_ok=True)
 os.makedirs("uploads/companies", exist_ok=True)
