@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
+from passlib.context import CryptContext
 
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 from ..models.user import User, Role, Permission, RolePermission, UserPermission
 from ..schemas.user import UserListItem, UserCreate, UserOut, PermissionNode,UserUpdate,UserDetail
 from ..models.user import UserPermission
@@ -193,7 +195,7 @@ def update_user(user_id: int, payload: UserUpdate, db: Session = Depends(get_db)
     if payload.Password:
         if payload.Password != payload.ConfirmPassword:
             raise HTTPException(status_code=400, detail="Passwords do not match")
-        user.PasswordHash = pwd_context.hash(payload.Password)
+        user.PasswordHash = hash_password(payload.Password)
 
     user.FullName = payload.FullName
     user.Username = payload.Username

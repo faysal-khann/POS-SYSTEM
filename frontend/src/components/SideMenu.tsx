@@ -8,7 +8,9 @@ import {
   Pressable,
   Dimensions,
   ScrollView,
+  Alert,
 } from "react-native";
+import { logout } from "../services/authApi";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -128,6 +130,8 @@ const settingsRoutes: Record<string, string> = {
   "Invoice Template": "/settings/invoice-template",
   "Backup & Restore": "/settings/backup-restore",
 };
+
+
 export default function SideMenu({ visible, onClose }: SideMenuProps) {
   const translateX = useRef(new Animated.Value(MENU_WIDTH)).current;
   const [productsOpen, setProductsOpen] = useState(true);
@@ -137,6 +141,20 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [usersRolesOpen, setUsersRolesOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const handleLogout = () => {
+  Alert.alert("Log Out", "Are you sure you want to log out?", [
+    { text: "Cancel", style: "cancel" },
+    {
+      text: "Log Out",
+      style: "destructive",
+      onPress: async () => {
+        onClose();
+        await logout();
+        router.replace("/login");
+      },
+    },
+  ]);
+};
   useEffect(() => {
     Animated.timing(translateX, {
       toValue: visible ? 0 : MENU_WIDTH,
@@ -398,7 +416,6 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
               </TouchableOpacity>
             ))}
 
-         
           {/* Reports */}
           <TouchableOpacity className="flex-row items-center py-3 px-2 rounded-lg mb-1">
             <Ionicons name="document-text-outline" size={18} color="#9CA3AF" />
@@ -452,6 +469,17 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
                 <Text className="text-gray-400 text-sm">{sub}</Text>
               </TouchableOpacity>
             ))}
+
+          {/* Logout */}
+          <TouchableOpacity
+            onPress={handleLogout}
+            className="flex-row items-center py-3 px-2 rounded-lg mb-1 mt-2"
+          >
+            <Ionicons name="log-out-outline" size={18} color="#EF4444" />
+            <Text className="text-red-400 ml-3 text-sm font-medium">
+              Log Out
+            </Text>
+          </TouchableOpacity>
         </ScrollView>
       </Animated.View>
     </SafeAreaView>
