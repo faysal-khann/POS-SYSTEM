@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { getFullImageUrl } from "../services/productApi";
 
-const API_URL = "http://192.168.1.5:8000";
+
 
 export default function ProductCard({ product, onDeleted }: any) {
   const router = useRouter();

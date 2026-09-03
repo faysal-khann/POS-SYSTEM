@@ -292,14 +292,25 @@ export default function AddProductScreen() {
           )}
         </View>
 
-        <Dropdown
-          label="Category"
-          placeholder="Select category"
-          required
-          options={categories}
-          selectedId={form.CategoryID || undefined}
-          onSelect={(id) => update("CategoryID", id)}
-        />
+        <View className="flex-row items-start">
+          <View className="flex-1 mr-2">
+            <Dropdown
+              label="Category"
+              placeholder="Select category"
+              required
+              options={categories}
+              selectedId={form.CategoryID || undefined}
+              onSelect={(id) => update("CategoryID", id)}
+            />
+          </View>
+
+          <TouchableOpacity
+            onPress={() => router.push("/(tabs)/products/categories")}
+            className="w-10 h-10 rounded-xl bg-blue-600 items-center justify-center mt-[24px]"
+          >
+            <Ionicons name="add" size={22} color="#fff" />
+          </TouchableOpacity>
+        </View>
         <Dropdown
           label="Brand"
           placeholder="Select brand"

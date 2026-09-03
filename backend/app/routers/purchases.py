@@ -1,0 +1,253 @@
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func
+from typing import List, Optional
+from datetime import date
+from pydantic import BaseModel
+from ..models.stock import ProductStock, StockMovement
+from ..database import get_db
+from ..models.purchase import Purchase, PurchaseItem, Branch, Size
+from ..models.supplier import Supplier
+from ..schemas.purchase import PurchaseCreate, PurchaseOut, PurchaseListItem
+
+router = APIRouter(prefix="/purchases", tags=["Purchases"])
+
+
+def generate_purchase_no(db: Session, purchase_date: date) -> str:
+    date_str = purchase_date.strftime("%Y%m%d")
+    count_for_day = (
+        db.query(func.count(Purchase.PurchaseID))
+        .filter(Purchase.PurchaseDate == purchase_date)
+        .scalar() or 0
+    )
+    return f"PUR-{date_str}{count_for_day + 1:06d}"
+
+
+@router.get("/", response_model=List[PurchaseListItem])
+def get_purchases(
+    db: Session = Depends(get_db),
+    date_from: Optional[date] = Query(None),
+    date_to: Optional[date] = Query(None),
+    supplier_id: Optional[int] = Query(None),
+    status: Optional[str] = Query(None),
+):
+    query = db.query(Purchase).options(joinedload(Purchase.supplier))
+
+    if date_from:
+        query = query.filter(Purchase.PurchaseDate >= date_from)
+    if date_to:
+        query = query.filter(Purchase.PurchaseDate <= date_to)
+    if supplier_id:
+        query = query.filter(Purchase.SupplierID == supplier_id)
+    if status and status != "All":
+        query = query.filter(Purchase.Status == status)
+
+    purchases = query.order_by(Purchase.PurchaseDate.desc()).all()
+
+    result = []
+    for p in purchases:
+        item_count = db.query(func.count(PurchaseItem.PurchaseItemID)).filter(
+            PurchaseItem.PurchaseID == p.PurchaseID
+        ).scalar() or 0
+
+        result.append(PurchaseListItem(
+            PurchaseID=p.PurchaseID,
+            PurchaseNo=p.PurchaseNo,
+            PurchaseDate=p.PurchaseDate,
+            SupplierName=p.supplier.SupplierName if p.supplier else "—",
+            TotalItems=item_count,
+            TotalAmount=float(p.GrandTotal),
+            Status=p.Status,
+            PaymentStatus=p.PaymentStatus,
+        ))
+
+    return result
+
+
+
+
+
+class BranchCreateInput(BaseModel):
+    CompanyID: int
+    BranchName: str
+    ManagerName: Optional[str] = None
+    Phone: Optional[str] = None
+    Address: Optional[str] = None
+    # BranchCode removed from input — it's auto-generated now
+
+
+def generate_next_branch_code(db: Session) -> str:
+    last_branch = (
+        db.query(Branch)
+        .filter(Branch.BranchCode.like("BR-%"))
+        .order_by(Branch.BranchID.desc())
+        .first()
+    )
+
+    if not last_branch or not last_branch.BranchCode:
+        return "BR-001"
+
+    try:
+        last_number = int(last_branch.BranchCode.split("-")[1])
+    except (IndexError, ValueError):
+        last_number = 0
+
+    next_number = last_number + 1
+    return f"BR-{next_number:03d}"   # BR-001, BR-004, BR-025, etc.
+
+
+@router.post("/branches")
+def create_branch(payload: BranchCreateInput, db: Session = Depends(get_db)):
+    next_code = generate_next_branch_code(db)
+
+    branch = Branch(
+        CompanyID=payload.CompanyID,
+        BranchCode=next_code,
+        BranchName=payload.BranchName,
+        ManagerName=payload.ManagerName,
+        Phone=payload.Phone,
+        Address=payload.Address,
+        IsActive=True,
+    )
+    db.add(branch)
+    db.commit()
+    db.refresh(branch)
+
+    return {
+        "id": branch.BranchID,
+        "name": branch.BranchName,
+        "code": branch.BranchCode,
+    }
+
+@router.get("/sizes")
+def get_sizes(db: Session = Depends(get_db)):
+    rows = db.query(Size).filter(Size.Status == "Active").order_by(Size.SortOrder).all()
+    return [{"id": s.SizeID, "name": s.SizeName} for s in rows]
+
+
+@router.get("/next-number")
+def preview_next_number(purchase_date: date = Query(...), db: Session = Depends(get_db)):
+    return {"purchase_no": generate_purchase_no(db, purchase_date)}
+
+# --- Static/lookup routes MUST come before /{purchase_id} ---
+
+
+
+@router.get("/branches")
+def get_branches(db: Session = Depends(get_db)):
+    rows = db.query(Branch).all()
+    return [{"id": b.BranchID, "name": b.BranchName} for b in rows]
+
+
+@router.post("/", response_model=PurchaseOut)
+def create_purchase(payload: PurchaseCreate, db: Session = Depends(get_db)):
+    new_no = generate_purchase_no(db, payload.PurchaseDate)
+
+    purchase = Purchase(
+        PurchaseNo=new_no,
+        CompanyID=payload.CompanyID,
+        BranchID=payload.BranchID,
+        SupplierID=payload.SupplierID,
+        PurchaseDate=payload.PurchaseDate,
+        PaymentTerm=payload.PaymentTerm,
+        ReferenceNo=payload.ReferenceNo,
+        Remarks=payload.Remarks,
+        SubTotal=payload.SubTotal,
+        DiscountAmount=payload.DiscountAmount,
+        TaxPercent=payload.TaxPercent,
+        TaxAmount=payload.TaxAmount,
+        ShippingCharge=payload.ShippingCharge,
+        GrandTotal=payload.GrandTotal,
+        Status=payload.Status,
+        PaymentStatus=payload.PaymentStatus,
+    )
+    db.add(purchase)
+    db.flush()
+
+    for item in payload.items:
+        db.add(PurchaseItem(
+            PurchaseID=purchase.PurchaseID,
+            ProductID=item.ProductID,
+            SizeID=item.SizeID,
+            BatchNo=item.BatchNo,
+            Qty=item.Qty,
+            UnitPrice=item.UnitPrice,
+            DiscountPercent=item.DiscountPercent,
+            LineTotal=item.LineTotal,
+        ))
+
+        # find or create the stock row for this product + branch
+        stock = (
+            db.query(ProductStock)
+            .filter(
+                ProductStock.ProductID == item.ProductID,
+                ProductStock.BranchID == payload.BranchID,
+            )
+            .first()
+        )
+        previous_balance = stock.CurrentStock if stock else 0
+        new_balance = previous_balance + item.Qty
+
+        if stock:
+            stock.CurrentStock = new_balance
+        else:
+            stock = ProductStock(
+                ProductID=item.ProductID,
+                BranchID=payload.BranchID,
+                CurrentStock=new_balance,
+            )
+            db.add(stock)
+            db.flush()  # populate stock.ProductStockID before we reference it
+
+        db.add(StockMovement(
+            ProductStockID=stock.ProductStockID,
+            BranchID=payload.BranchID,
+            ProductID=item.ProductID,
+            MovementType="Purchase",
+            ReferenceType="Purchase",
+            ReferenceID=purchase.PurchaseID,
+            QtyIn=item.Qty,
+            QtyOut=0,
+            BalanceQty=new_balance,
+        ))
+
+    db.commit()
+    db.refresh(purchase)
+    return get_purchase(purchase.PurchaseID, db)
+
+
+# --- Dynamic routes go LAST ---
+
+@router.get("/{purchase_id}", response_model=PurchaseOut)
+def get_purchase(purchase_id: int, db: Session = Depends(get_db)):
+    purchase = (
+    db.query(Purchase)
+    .options(
+        joinedload(Purchase.items).joinedload(PurchaseItem.product),
+        joinedload(Purchase.items).joinedload(PurchaseItem.size),
+    )
+    .filter(Purchase.PurchaseID == purchase_id)
+    .first()
+    )
+    if not purchase:
+        raise HTTPException(status_code=404, detail="Purchase not found")
+
+    out = PurchaseOut.model_validate(purchase)
+    for i, item in enumerate(purchase.items):
+        out.items[i].ProductName = item.product.ProductName if item.product else None
+        out.items[i].SizeName = item.size.SizeName if item.size else None
+    return out
+
+
+@router.delete("/{purchase_id}")
+def delete_purchase(purchase_id: int, db: Session = Depends(get_db)):
+    purchase = db.query(Purchase).filter(Purchase.PurchaseID == purchase_id).first()
+    if not purchase:
+        raise HTTPException(status_code=404, detail="Purchase not found")
+    db.delete(purchase)
+    db.commit()
+    return {"message": "Purchase deleted successfully"}
+
+def generate_purchase_no(db: Session, purchase_date: date) -> str:
+    last = db.query(func.max(Purchase.PurchaseID)).scalar() or 0
+    return f"PUR-{purchase_date.strftime('%y')}{purchase_date.strftime('%m')}{last + 1:04d}"
