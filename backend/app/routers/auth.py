@@ -9,7 +9,7 @@ from ..database import get_db
 from ..models.user import User
 from ..models.purchase import Branch, Company
 from ..schemas.auth import LoginRequest, LoginResponse
-
+from ..models.user import UserPermission, Permission
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -55,7 +55,13 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     db.commit()
 
     token = create_access_token({"sub": str(user.UserID), "role": user.role.RoleName if user.role else None})
-
+    permission_rows = (
+        db.query(Permission.PermissionKey)
+        .join(UserPermission, UserPermission.PermissionID == Permission.PermissionID)
+        .filter(UserPermission.UserID == user.UserID)
+        .all()
+    )
+    permission_keys = [r[0] for r in permission_rows]
     return LoginResponse(
         access_token=token,
         UserID=user.UserID,
@@ -68,6 +74,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         CompanyName=company.CompanyName,
         PrimaryBranchID=branch.BranchID,
         BranchName=branch.BranchName,
+        PermissionKeys=permission_keys
     )
 
 @router.get("/lookup-company")

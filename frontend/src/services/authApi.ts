@@ -26,6 +26,7 @@ export type LoginResponse = {
   CompanyName: string;
   PrimaryBranchID: number;
   BranchName: string;
+  PermissionKeys: string[];
 };
 
 export const login = async (data: LoginInput): Promise<LoginResponse> => {
@@ -65,4 +66,9 @@ export const verifyCredentials = async (
   } catch {
     return null;
   }
+};
+
+export const getStoredPermissions = async (): Promise<string[]> => {
+  const user = await getStoredUser();
+  return user?.PermissionKeys ?? [];
 };

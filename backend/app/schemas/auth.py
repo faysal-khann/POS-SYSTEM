@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-
+from typing import List
 
 class LoginRequest(BaseModel):
     CompanyID: int
@@ -20,3 +20,4 @@ class LoginResponse(BaseModel):
     CompanyName: str
     PrimaryBranchID: int
     BranchName: str
+    PermissionKeys: List[str] = []
