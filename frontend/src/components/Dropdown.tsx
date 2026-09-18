@@ -35,7 +35,7 @@ export default function Dropdown({
   const selected = options.find((o) => o.id === selectedId);
 
   const filteredOptions = options.filter((option) =>
-    option.name.toLowerCase().includes(searchText.toLowerCase())
+    option.name?.toLowerCase().includes(searchText.toLowerCase())
   );
 
   const closeModal = () => {
