@@ -26,6 +26,6 @@ class Customer(Base):
     CreditLimit = Column(Numeric(12, 2), default=0.00)
     DueAmount = Column(Numeric(12, 2), default=0.00)
     Notes = Column(String(None), nullable=True)  # VARCHAR(MAX)
-
+    LoyaltyPoints = Column(Integer, default=0)
     Status = Column(String(20), default="Active")
     CreatedAt = Column(DateTime(timezone=False), server_default=func.now())

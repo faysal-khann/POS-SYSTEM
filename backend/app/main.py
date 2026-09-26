@@ -18,7 +18,11 @@ from .routers import permissions
 from .routers import companies
 from .routers import branches
 from .routers import auth
-
+from .routers import sales
+from .routers import sale_returns
+from .routers import cashier_shifts      
+from .routers import loyalty        
+from .routers import expenses
 
 load_dotenv()
 
@@ -47,6 +51,13 @@ app.include_router(users.router)
 app.include_router(companies.router)
 app.include_router(branches.router)
 app.include_router(auth.router)
+app.include_router(sales.router)
+app.include_router(sale_returns.router)
+app.include_router(cashier_shifts.router) 
+app.include_router(loyalty.router)
+app.include_router(expenses.router)
+
+
 
 os.makedirs("uploads/products", exist_ok=True)
 os.makedirs("uploads/companies", exist_ok=True)

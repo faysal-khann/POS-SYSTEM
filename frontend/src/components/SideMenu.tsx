@@ -26,17 +26,54 @@ type SideMenuProps = {
 // SUB-ITEM LISTS
 // ============================================
 const productSubItems = [
-  "Product List", "Add Product", "Categories", "Brands", "Units",
-  "Barcode Labels", "Price Update", "Bulk Price Update",
+  "Product List",
+  "Add Product",
+  "Categories",
+  "Brands",
+  "Units",
+  "Barcode Labels",
+  "Price Update",
+  "Bulk Price Update",
 ];
 const inventorySubItems = [
-  "Current Stock", "Stock In", "Stock Out", "Stock Adjustment", "Low Stock Alert", "Stock Count",
+  "Current Stock",
+  "Stock In",
+  "Stock Out",
+  "Stock Adjustment",
+  "Low Stock Alert",
+  "Stock Count",
 ];
-const purchaseSubItems = ["Purchase List", "New Purchase", "Purchase Returns", "Supplier Dues"];
+const purchaseSubItems = [
+  "Purchase List",
+  "New Purchase",
+  "Purchase Returns",
+  "Supplier Dues",
+];
 const supplierSubItems = ["Supplier List", "Add Supplier", "Supplier Ledger"];
-const customerSubItems = ["Customer List", "Add Customer", "Customer Ledger", "Loyalty Points"];
+const customerSubItems = [
+  "Customer List",
+  "Add Customer",
+  "Customer Ledger",
+  "Loyalty Points",
+];
 const usersRolesSubItems = ["Users", "Roles", "Permissions", "Activity Log"];
-const settingsSubItems = ["Company Info", "Branch / Outlet", "Tax & VAT", "Invoice Template", "Backup & Restore"];
+const settingsSubItems = [
+  "Company Info",
+  "Branch / Outlet",
+  "Tax & VAT",
+  "Invoice Template",
+  "Backup & Restore",
+];
+const posSubItems = [
+  "New Sale",
+  "Sales History",
+  "Returns & Refunds",
+  "Hold / Park Sales",
+  "Draft Invoices",
+  "Cashier Shift",
+];
+
+const expenseSubItems = ["Expense List", "Add Expense", "Expense Categories"];
 
 // ============================================
 // ROUTES
@@ -89,6 +126,20 @@ const settingsRoutes: Record<string, string> = {
   "Invoice Template": "/settings/invoice-template",
   "Backup & Restore": "/settings/backup-restore",
 };
+const posRoutes: Record<string, string> = {
+  "New Sale": "/pos",
+  "Sales History": "/pos/sales-history",
+  "Returns & Refunds": "/pos/returns",
+  "Hold / Park Sales": "/pos/held-sales",
+  "Draft Invoices": "/pos/drafts",
+  "Cashier Shift": "/pos/cashier-shift",
+};
+
+const expenseRoutes: Record<string, string> = {
+  "Expense List": "/expenses",
+  "Add Expense": "/expenses/add",
+  "Expense Categories": "/expenses/categories",
+};
 
 // ============================================
 // PERMISSION KEY MAPS — exact key required per sub-item
@@ -103,6 +154,7 @@ const productSubItemPermissions: Record<string, string> = {
   "Price Update": "products.price_update",
   "Bulk Price Update": "products.bulk_price_update",
 };
+
 const inventorySubItemPermissions: Record<string, string> = {
   "Current Stock": "inventory.current_stock",
   "Stock In": "inventory.stock_in",
@@ -141,7 +193,20 @@ const settingsSubItemPermissions: Record<string, string> = {
   "Invoice Template": "settings.invoice_template",
   "Backup & Restore": "settings.backup_restore",
 };
+const posSubItemPermissions: Record<string, string> = {
+  "New Sale": "pos.new_sale",
+  "Sales History": "pos.sales_history",
+  "Returns & Refunds": "pos.returns_refunds",
+  "Hold / Park Sales": "pos.hold_park_sales",
+  "Draft Invoices": "pos.draft_invoices",
+  "Cashier Shift": "pos.cashier_shift",
+};
 
+const expenseSubItemPermissions: Record<string, string> = {
+  "Expense List": "expenses.list",
+  "Add Expense": "expenses.add",
+  "Expense Categories": "expenses.categories",
+};
 export default function SideMenu({ visible, onClose }: SideMenuProps) {
   const translateX = useRef(new Animated.Value(MENU_WIDTH)).current;
   const [productsOpen, setProductsOpen] = useState(true);
@@ -152,7 +217,8 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
   const [usersRolesOpen, setUsersRolesOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [permissions, setPermissions] = useState<string[]>([]);
-
+  const [posOpen, setPosOpen] = useState(false);
+  const [expensesOpen, setExpensesOpen] = useState(false);
   useEffect(() => {
     if (visible) {
       (async () => {
@@ -214,7 +280,11 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
             <Ionicons name={icon as any} size={18} color="#fff" />
             <Text className="text-white ml-3 text-sm font-medium">{title}</Text>
           </View>
-          <Ionicons name={isOpen ? "chevron-up" : "chevron-down"} size={14} color="#fff" />
+          <Ionicons
+            name={isOpen ? "chevron-up" : "chevron-down"}
+            size={14}
+            color="#fff"
+          />
         </TouchableOpacity>
 
         {isOpen &&
@@ -255,42 +325,110 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
             </TouchableOpacity>
           )}
 
-          {permissions.some((p) => p.startsWith("pos.")) && (
-            <TouchableOpacity className="flex-row items-center py-3 px-2 rounded-lg mb-1">
-              <Ionicons name="card-outline" size={18} color="#9CA3AF" />
-              <Text className="text-gray-300 ml-3 text-sm">POS</Text>
-            </TouchableOpacity>
+          {renderSection(
+            "POS",
+            "card-outline",
+            posOpen,
+            setPosOpen,
+            posSubItems,
+            posSubItemPermissions,
+            posRoutes,
           )}
 
-          {renderSection("Products", "cube-outline", productsOpen, setProductsOpen, productSubItems, productSubItemPermissions, productRoutes)}
-          {renderSection("Inventory", "layers-outline", inventoryOpen, setInventoryOpen, inventorySubItems, inventorySubItemPermissions, inventoryRoutes)}
-          {renderSection("Purchase", "cart-outline", purchaseOpen, setPurchaseOpen, purchaseSubItems, purchaseSubItemPermissions, purchaseRoutes)}
-          {renderSection("Suppliers", "people-circle-outline", suppliersOpen, setSuppliersOpen, supplierSubItems, supplierSubItemPermissions, supplierRoutes)}
-          {renderSection("Customers", "people-circle-outline", customersOpen, setCustomersOpen, customerSubItems, customerSubItemPermissions, customerRoutes)}
-          {renderSection("Users & Roles", "person-outline", usersRolesOpen, setUsersRolesOpen, usersRolesSubItems, usersRolesSubItemPermissions, usersRolesRoutes)}
+          {renderSection(
+            "Products",
+            "cube-outline",
+            productsOpen,
+            setProductsOpen,
+            productSubItems,
+            productSubItemPermissions,
+            productRoutes,
+          )}
+          {renderSection(
+            "Inventory",
+            "layers-outline",
+            inventoryOpen,
+            setInventoryOpen,
+            inventorySubItems,
+            inventorySubItemPermissions,
+            inventoryRoutes,
+          )}
+          {renderSection(
+            "Purchase",
+            "cart-outline",
+            purchaseOpen,
+            setPurchaseOpen,
+            purchaseSubItems,
+            purchaseSubItemPermissions,
+            purchaseRoutes,
+          )}
+          {renderSection(
+            "Suppliers",
+            "people-circle-outline",
+            suppliersOpen,
+            setSuppliersOpen,
+            supplierSubItems,
+            supplierSubItemPermissions,
+            supplierRoutes,
+          )}
+          {renderSection(
+            "Customers",
+            "people-circle-outline",
+            customersOpen,
+            setCustomersOpen,
+            customerSubItems,
+            customerSubItemPermissions,
+            customerRoutes,
+          )}
+          {renderSection(
+            "Users & Roles",
+            "person-outline",
+            usersRolesOpen,
+            setUsersRolesOpen,
+            usersRolesSubItems,
+            usersRolesSubItemPermissions,
+            usersRolesRoutes,
+          )}
 
           {hasPermission("reports.view") && (
             <TouchableOpacity className="flex-row items-center py-3 px-2 rounded-lg mb-1">
-              <Ionicons name="document-text-outline" size={18} color="#9CA3AF" />
+              <Ionicons
+                name="document-text-outline"
+                size={18}
+                color="#9CA3AF"
+              />
               <Text className="text-gray-300 ml-3 text-sm">Reports</Text>
             </TouchableOpacity>
           )}
 
-          {hasPermission("expenses.view") && (
-            <TouchableOpacity className="flex-row items-center py-3 px-2 rounded-lg mb-1">
-              <Ionicons name="wallet-outline" size={18} color="#9CA3AF" />
-              <Text className="text-gray-300 ml-3 text-sm">Expenses</Text>
-            </TouchableOpacity>
+          {renderSection(
+            "Expenses",
+            "wallet-outline",
+            expensesOpen,
+            setExpensesOpen,
+            expenseSubItems,
+            expenseSubItemPermissions,
+            expenseRoutes,
           )}
 
-          {renderSection("Settings", "settings-outline", settingsOpen, setSettingsOpen, settingsSubItems, settingsSubItemPermissions, settingsRoutes)}
+          {renderSection(
+            "Settings",
+            "settings-outline",
+            settingsOpen,
+            setSettingsOpen,
+            settingsSubItems,
+            settingsSubItemPermissions,
+            settingsRoutes,
+          )}
 
           <TouchableOpacity
             onPress={handleLogout}
             className="flex-row items-center py-3 px-2 rounded-lg mb-1 mt-2"
           >
             <Ionicons name="log-out-outline" size={18} color="#EF4444" />
-            <Text className="text-red-400 ml-3 text-sm font-medium">Log Out</Text>
+            <Text className="text-red-400 ml-3 text-sm font-medium">
+              Log Out
+            </Text>
           </TouchableOpacity>
         </ScrollView>
       </Animated.View>
