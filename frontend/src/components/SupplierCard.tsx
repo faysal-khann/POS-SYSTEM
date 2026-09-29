@@ -93,7 +93,7 @@ export default function SupplierCard({
 
       <View className="border-t border-gray-100 pt-3 flex-row justify-between items-center">
         <Text className="text-orange-500 font-semibold text-sm">
-          ৳ {supplier.DueAmount.toLocaleString()} due
+          ৳ {supplier.DueAmount?.toLocaleString() } due
         </Text>
         <View className="flex-row gap-2">
           {/* View */}

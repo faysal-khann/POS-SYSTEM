@@ -23,7 +23,7 @@ export type CustomerInput = {
 
   DateOfBirth?: Date;
   NationalIdTaxId?: string;
-
+  LoyaltyPoints: number;
   AddressLine1: string;
   AddressLine2?: string;
   City: string;

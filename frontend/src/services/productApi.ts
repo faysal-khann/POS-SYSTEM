@@ -142,8 +142,18 @@ export const updateProductPrice = async (
   return response.json();
 };
 
-export const getFullImageUrl = (relativePath?: string): string | undefined => {
+export const getFullImageUrl = (
+  relativePath?: string
+): string | undefined => {
   if (!relativePath) return undefined;
-  if (relativePath.startsWith("http")) return relativePath; // already a full URL (e.g. old data)
-  return `${API_URL}${relativePath}`;
+
+  if (relativePath.startsWith("http")) {
+    return relativePath;
+  }
+
+  const path = relativePath.startsWith("/")
+    ? relativePath
+    : `/${relativePath}`;
+
+  return `${API_URL}${path}`;
 };

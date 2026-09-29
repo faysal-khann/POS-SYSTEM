@@ -9,6 +9,7 @@ class CompanyListItem(BaseModel):
     Email: Optional[str] = None
     Address: Optional[str] = None
     Currency: Optional[str] = None
+    LoyaltyPoints: int
     Status: str
 
     class Config:
