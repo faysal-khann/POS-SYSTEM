@@ -63,9 +63,14 @@ export default function LoginScreen() {
         setCompanies(
           data.map((c) => ({ id: c.CompanyID, name: c.CompanyName })),
         );
-      } catch (err) {
-        console.error(err);
-        Alert.alert("Error", "Couldn't load companies.");
+      } catch (err: any) {
+        console.error("FULL ERROR:", err);
+        const detail = err?.response
+          ? `Server error ${err.response.status}.`
+          : err?.message
+            ? `Network error: ${err.message}`
+            : "Unknown error.";
+        Alert.alert("Error", `Couldn't load companies. ${detail}`);
       } finally {
         setLoadingCompanies(false);
       }
@@ -185,7 +190,7 @@ export default function LoginScreen() {
                 Verifying credentials...
               </Text>
             </View>
-          )  : null}
+          ) : null}
         </View>
 
         <TouchableOpacity
