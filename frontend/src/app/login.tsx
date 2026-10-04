@@ -64,13 +64,27 @@ export default function LoginScreen() {
           data.map((c) => ({ id: c.CompanyID, name: c.CompanyName })),
         );
       } catch (err: any) {
-        console.error("FULL ERROR:", err);
-        const detail = err?.response
-          ? `Server error ${err.response.status}.`
-          : err?.message
-            ? `Network error: ${err.message}`
-            : "Unknown error.";
-        Alert.alert("Error", `Couldn't load companies. ${detail}`);
+        const native = err?.request?._response;
+
+        console.error("========== API ERROR ==========");
+        console.error("Message:", err?.message);
+        console.error("Code:", err?.code);
+        console.error("URL:", err?.config?.baseURL);
+        console.error("Endpoint:", err?.config?.url);
+        console.error("Method:", err?.config?.method);
+        console.error("Native:", native);
+        console.error("Response:", err?.response);
+        console.error("Request:", err?.request);
+        console.error("================================");
+
+        Alert.alert(
+          "API Error",
+          `${err?.message}\n` +
+            `Code: ${err?.code ?? "unknown"}\n` +
+            `URL: ${err?.config?.baseURL ?? ""}${err?.config?.url ?? ""}\n` +
+            `Status: ${err?.response?.status ?? "no response"}\n` +
+            `Native: ${native ?? "none"}`,
+        );
       } finally {
         setLoadingCompanies(false);
       }

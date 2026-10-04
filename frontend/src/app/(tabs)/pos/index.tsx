@@ -71,7 +71,31 @@ const PAYMENT_METHODS: {
   { label: "Mobile", icon: "phone-portrait-outline" },
   { label: "Other", icon: "ellipsis-horizontal-circle-outline" },
 ];
-
+const DiscountTypeToggle = ({
+  value,
+  onChange,
+}: {
+  value: "fixed" | "percent";
+  onChange: (v: "fixed" | "percent") => void;
+}) => (
+  <View className="flex-row bg-gray-100 rounded-lg p-0.5">
+    {(["fixed", "percent"] as const).map((t) => (
+      <TouchableOpacity
+        key={t}
+        onPress={() => onChange(t)}
+        className={`px-3 py-1 rounded-md ${value === t ? "bg-blue-600" : ""}`}
+      >
+        <Text
+          className={`text-xs font-medium ${
+            value === t ? "text-white" : "text-gray-600"
+          }`}
+        >
+          {t === "fixed" ? "৳" : "%"}
+        </Text>
+      </TouchableOpacity>
+    ))}
+  </View>
+);
 const formatCurrency = (n: number) =>
   `৳ ${Number(n || 0).toLocaleString("en-BD", {
     minimumFractionDigits: 2,
@@ -140,14 +164,12 @@ export default function POSScreen() {
   const lastScan = useRef<{ code: string; at: number } | null>(null);
   const scanMsgTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [discountType, setDiscountType] = useState<
-    "none" | "percentage" | "fixed"
-  >("none");
-
   const [customerLoyaltyPoints, setCustomerLoyaltyPoints] = useState(0); // you may already have this
   const [pointsToRedeem, setPointsToRedeem] = useState("0");
-  const [manualDiscount, setManualDiscount] = useState("0");
 
+  const [discountType, setDiscountType] = useState<"fixed" | "percent">(
+    "fixed",
+  );
   const [discountValue, setDiscountValue] = useState("");
 
   const [loyaltyPointsInput, setLoyaltyPointsInput] = useState("");
@@ -399,15 +421,18 @@ export default function POSScreen() {
       0,
     );
 
-    const manualDiscountAmt = parseFloat(manualDiscount) || 0;
+    const base = subTotal - lineDiscount;
+    const rawValue = parseFloat(discountValue) || 0;
+    const manualDiscountAmt =
+      discountType === "percent"
+        ? (base * Math.min(Math.max(rawValue, 0), 100)) / 100
+        : Math.min(Math.max(rawValue, 0), base);
+
     const redeemAmt = parseFloat(pointsToRedeem) || 0;
 
-    const grand = Math.max(
-      0,
-      subTotal - lineDiscount - manualDiscountAmt - redeemAmt + tax,
-    );
+    const grand = Math.max(0, base - manualDiscountAmt - redeemAmt + tax);
     return { subTotal, lineDiscount, tax, manualDiscountAmt, redeemAmt, grand };
-  }, [cart, manualDiscount, pointsToRedeem]);
+  }, [cart, discountType, discountValue, pointsToRedeem]);
 
   const receivedNum = parseFloat(received) || 0;
   const change = Math.max(0, receivedNum - totals.grand);
@@ -466,7 +491,7 @@ export default function POSScreen() {
           "Retail Price",
         SubTotal: totals.subTotal,
         DiscountAmount: totals.manualDiscountAmt,
-        
+
         TaxAmount: totals.tax,
         GrandTotal: totals.grand,
         PaymentMethod: paymentMethod,
@@ -534,7 +559,9 @@ export default function POSScreen() {
     animateNext();
     setCart([]);
     setReceived("0");
-
+    setDiscountValue("");
+    setDiscountType("fixed");
+    setPointsToRedeem("0");
     setCustomerId(undefined);
     setCustomerName("Walk-in Customer");
     try {
@@ -976,13 +1003,20 @@ export default function POSScreen() {
           )}
 
           <View className="mb-3">
-            <Text className="text-xs text-gray-500 mb-1">
-              Manual Discount (৳)
-            </Text>
+            <View className="flex-row items-center justify-between mb-1">
+              <Text className="text-xs text-gray-500">
+                Discount ({discountType === "percent" ? "%" : "৳"})
+              </Text>
+              <DiscountTypeToggle
+                value={discountType}
+                onChange={setDiscountType}
+              />
+            </View>
             <TextInput
-              value={manualDiscount}
-              onChangeText={setManualDiscount}
+              value={discountValue}
+              onChangeText={setDiscountValue}
               keyboardType="numeric"
+              placeholder="0"
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white"
             />
           </View>

@@ -28,7 +28,9 @@ type ReturnLine = ReturnableItem & { ReturnQty: number };
 
 export default function ReturnsRefundsScreen() {
   const [menuVisible, setMenuVisible] = useState(false);
-  const [returnType, setReturnType] = useState<"Sales Return" | "Refund">("Sales Return");
+  const [returnType, setReturnType] = useState<"Sales Return" | "Refund">(
+    "Sales Return",
+  );
 
   const [invoiceInput, setInvoiceInput] = useState("");
   const [searching, setSearching] = useState(false);
@@ -87,7 +89,10 @@ export default function ReturnsRefundsScreen() {
       setSearching(true);
       const result = await lookupSale(invoice);
       if (result.items.length === 0) {
-        Alert.alert("Nothing to return", "All items on this invoice have already been returned.");
+        Alert.alert(
+          "Nothing to return",
+          "All items on this invoice have already been returned.",
+        );
         setSale(null);
         setLines([]);
         return;
@@ -96,8 +101,21 @@ export default function ReturnsRefundsScreen() {
       setSale(result);
       setLines(result.items.map((i) => ({ ...i, ReturnQty: 0 })));
     } catch (err: any) {
-      console.error(err);
-      Alert.alert("Not found", err?.response?.data?.detail || "Invoice not found.");
+      console.log("========== RETURN SEARCH FAILED ==========");
+      console.log("ERROR OBJECT:", err);
+      console.log("ERROR MESSAGE:", err?.message);
+      console.log("ERROR CODE:", err?.code);
+      console.log("STATUS:", err?.response?.status);
+      console.log("DATA:", JSON.stringify(err?.response?.data, null, 2));
+      console.log("URL:", err?.config?.url);
+      console.log("BASE URL:", err?.config?.baseURL);
+      console.log("PARAMS:", JSON.stringify(err?.config?.params, null, 2));
+      console.log("==========================================");
+      console.error("========================================");
+      Alert.alert(
+        "Not found",
+        err?.response?.data?.detail || "Invoice not found.",
+      );
       setSale(null);
       setLines([]);
     } finally {
@@ -119,7 +137,10 @@ export default function ReturnsRefundsScreen() {
 
   const totals = useMemo(() => {
     const subTotal = lines.reduce((s, l) => s + lineTotal(l), 0);
-    const tax = lines.reduce((s, l) => s + (lineTotal(l) * l.TaxPercent) / 100, 0);
+    const tax = lines.reduce(
+      (s, l) => s + (lineTotal(l) * l.TaxPercent) / 100,
+      0,
+    );
     return { subTotal, tax, grand: subTotal + tax };
   }, [lines]);
 
@@ -166,20 +187,27 @@ export default function ReturnsRefundsScreen() {
         })),
       });
 
-      Alert.alert("Success", `Return processed. Refund: ৳ ${result.GrandTotal.toFixed(2)}`, [
-        {
-          text: "OK",
-          onPress: () => {
-            clearSelection();
-            setNote("");
-            setReason(undefined);
-            loadSales(); // refresh list after a return
+      Alert.alert(
+        "Success",
+        `Return processed. Refund: ৳ ${result.GrandTotal.toFixed(2)}`,
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              clearSelection();
+              setNote("");
+              setReason(undefined);
+              loadSales(); // refresh list after a return
+            },
           },
-        },
-      ]);
+        ],
+      );
     } catch (err: any) {
       console.error(err);
-      Alert.alert("Error", err?.response?.data?.detail || "Couldn't process return.");
+      Alert.alert(
+        "Error",
+        err?.response?.data?.detail || "Couldn't process return.",
+      );
     } finally {
       setSaving(false);
     }
@@ -192,10 +220,15 @@ export default function ReturnsRefundsScreen() {
         <TouchableOpacity onPress={() => setMenuVisible(true)}>
           <Ionicons name="menu" size={24} color="#111827" />
         </TouchableOpacity>
-        <Text className="text-lg font-semibold text-gray-900 ml-3">Returns & Refunds</Text>
+        <Text className="text-lg font-semibold text-gray-900 ml-3">
+          Returns & Refunds
+        </Text>
       </View>
 
-      <ScrollView className="flex-1 px-4 pt-4" contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView
+        className="flex-1 px-4 pt-4"
+        contentContainerStyle={{ paddingBottom: 40 }}
+      >
         {/* Return type toggle */}
         <View className="flex-row mb-4">
           {(["Sales Return", "Refund"] as const).map((type) => (
@@ -209,7 +242,9 @@ export default function ReturnsRefundsScreen() {
                   returnType === type ? "border-blue-600" : "border-gray-300"
                 }`}
               >
-                {returnType === type && <View className="w-2 h-2 rounded-full bg-blue-600" />}
+                {returnType === type && (
+                  <View className="w-2 h-2 rounded-full bg-blue-600" />
+                )}
               </View>
               <Text className="text-sm text-gray-800">{type}</Text>
             </TouchableOpacity>
@@ -218,7 +253,9 @@ export default function ReturnsRefundsScreen() {
 
         {/* Invoice search */}
         <View className="mb-4">
-          <Text className="text-sm font-medium text-gray-700 mb-1.5">Original Invoice</Text>
+          <Text className="text-sm font-medium text-gray-700 mb-1.5">
+            Original Invoice
+          </Text>
           <View className="flex-row items-center border border-gray-200 rounded-xl px-3 bg-white">
             <TextInput
               value={invoiceInput}
@@ -230,7 +267,10 @@ export default function ReturnsRefundsScreen() {
               editable={!sale}
               className="flex-1 py-3 text-sm text-gray-800"
             />
-            <TouchableOpacity onPress={() => handleSearch()} disabled={searching || !!sale}>
+            <TouchableOpacity
+              onPress={() => handleSearch()}
+              disabled={searching || !!sale}
+            >
               {searching ? (
                 <ActivityIndicator size="small" color="#3B82F6" />
               ) : (
@@ -248,7 +288,9 @@ export default function ReturnsRefundsScreen() {
             </Text>
 
             {loadingSales ? (
-              <View className="my-8"><ActivityIndicator size="large" color="#3B82F6" /></View>
+              <View className="my-8">
+                <ActivityIndicator size="large" color="#3B82F6" />
+              </View>
             ) : filteredSales.length === 0 ? (
               <Text className="text-sm text-gray-400 text-center my-8">
                 {invoiceInput.trim() ? "No matching sales." : "No sales yet."}
@@ -262,14 +304,19 @@ export default function ReturnsRefundsScreen() {
                   className="bg-white border border-gray-200 rounded-xl p-3 mb-3"
                 >
                   <View className="flex-row justify-between items-center mb-1">
-                    <Text className="text-sm font-semibold text-gray-900">{s.InvoiceNo}</Text>
+                    <Text className="text-sm font-semibold text-gray-900">
+                      {s.InvoiceNo}
+                    </Text>
                     <Text className="text-sm font-bold text-blue-600">
                       ৳ {s.GrandTotal.toFixed(2)}
                     </Text>
                   </View>
-                  <Text className="text-xs text-gray-600 mb-0.5">{s.CustomerName}</Text>
+                  <Text className="text-xs text-gray-600 mb-0.5">
+                    {s.CustomerName}
+                  </Text>
                   <Text className="text-xs text-gray-400">
-                    {new Date(s.SaleDate).toLocaleString()} · {s.TotalItems} item
+                    {new Date(s.SaleDate).toLocaleString()} · {s.TotalItems}{" "}
+                    item
                     {s.TotalItems === 1 ? "" : "s"} · {s.PaymentStatus}
                   </Text>
                 </TouchableOpacity>
@@ -281,19 +328,27 @@ export default function ReturnsRefundsScreen() {
         {sale && (
           <>
             <View className="mb-4">
-              <Text className="text-sm font-medium text-gray-700 mb-1.5">Customer</Text>
+              <Text className="text-sm font-medium text-gray-700 mb-1.5">
+                Customer
+              </Text>
               <View className="border border-gray-200 rounded-xl px-3 py-3 bg-gray-100">
-                <Text className="text-sm text-gray-700">{sale.CustomerName}</Text>
+                <Text className="text-sm text-gray-700">
+                  {sale.CustomerName}
+                </Text>
               </View>
             </View>
 
             <View className="mb-4">
-              <Text className="text-sm font-medium text-gray-700 mb-1.5">Return Date</Text>
+              <Text className="text-sm font-medium text-gray-700 mb-1.5">
+                Return Date
+              </Text>
               <TouchableOpacity
                 onPress={() => setShowDatePicker(true)}
                 className="flex-row items-center justify-between border border-gray-200 rounded-xl px-3 py-3 bg-white"
               >
-                <Text className="text-sm text-gray-800">{returnDate.toLocaleString()}</Text>
+                <Text className="text-sm text-gray-800">
+                  {returnDate.toLocaleString()}
+                </Text>
                 <Ionicons name="calendar-outline" size={16} color="#9CA3AF" />
               </TouchableOpacity>
               {showDatePicker && (
@@ -317,7 +372,9 @@ export default function ReturnsRefundsScreen() {
             />
 
             <View className="mb-4">
-              <Text className="text-sm font-medium text-gray-700 mb-1.5">Note</Text>
+              <Text className="text-sm font-medium text-gray-700 mb-1.5">
+                Note
+              </Text>
               <TextInput
                 value={note}
                 onChangeText={setNote}
@@ -336,10 +393,16 @@ export default function ReturnsRefundsScreen() {
             </Text>
 
             {lines.map((l) => (
-              <View key={l.ProductID} className="bg-white border border-gray-200 rounded-xl p-3 mb-3">
-                <Text className="text-sm font-medium text-gray-900 mb-1">{l.ProductName}</Text>
+              <View
+                key={l.ProductID}
+                className="bg-white border border-gray-200 rounded-xl p-3 mb-3"
+              >
+                <Text className="text-sm font-medium text-gray-900 mb-1">
+                  {l.ProductName}
+                </Text>
                 <Text className="text-xs text-gray-400 mb-2">
-                  Available: {l.QtyAvailable} · Unit Price ৳ {l.UnitPrice.toFixed(2)}
+                  Available: {l.QtyAvailable} · Unit Price ৳{" "}
+                  {l.UnitPrice.toFixed(2)}
                 </Text>
 
                 <View className="flex-row items-center justify-between">
@@ -352,7 +415,9 @@ export default function ReturnsRefundsScreen() {
                     </TouchableOpacity>
                     <TextInput
                       value={String(l.ReturnQty)}
-                      onChangeText={(v) => updateQty(l.ProductID, parseFloat(v) || 0)}
+                      onChangeText={(v) =>
+                        updateQty(l.ProductID, parseFloat(v) || 0)
+                      }
                       keyboardType="numeric"
                       className="w-12 text-center text-sm font-semibold text-gray-900"
                     />
@@ -375,24 +440,36 @@ export default function ReturnsRefundsScreen() {
             <View className="bg-white border border-gray-200 rounded-xl p-4 mb-4">
               <View className="flex-row justify-between mb-2">
                 <Text className="text-sm text-gray-600">Total Items</Text>
-                <Text className="text-sm text-gray-900">{totalItemsSelected}</Text>
+                <Text className="text-sm text-gray-900">
+                  {totalItemsSelected}
+                </Text>
               </View>
               <View className="flex-row justify-between mb-2">
                 <Text className="text-sm text-gray-600">Sub Total</Text>
-                <Text className="text-sm text-gray-900">৳ {totals.subTotal.toFixed(2)}</Text>
+                <Text className="text-sm text-gray-900">
+                  ৳ {totals.subTotal.toFixed(2)}
+                </Text>
               </View>
               <View className="flex-row justify-between mb-2">
                 <Text className="text-sm text-gray-600">Tax</Text>
-                <Text className="text-sm text-gray-900">৳ {totals.tax.toFixed(2)}</Text>
+                <Text className="text-sm text-gray-900">
+                  ৳ {totals.tax.toFixed(2)}
+                </Text>
               </View>
               <View className="flex-row justify-between border-t border-gray-100 pt-2">
-                <Text className="text-base font-semibold text-gray-900">Grand Total</Text>
-                <Text className="text-lg font-bold text-blue-600">৳ {totals.grand.toFixed(2)}</Text>
+                <Text className="text-base font-semibold text-gray-900">
+                  Grand Total
+                </Text>
+                <Text className="text-lg font-bold text-blue-600">
+                  ৳ {totals.grand.toFixed(2)}
+                </Text>
               </View>
             </View>
 
             {/* Refund method */}
-            <Text className="text-sm font-medium text-gray-700 mb-2">Refund Method</Text>
+            <Text className="text-sm font-medium text-gray-700 mb-2">
+              Refund Method
+            </Text>
             <View className="flex-row mb-6">
               {REFUND_METHODS.map((m) => (
                 <TouchableOpacity
