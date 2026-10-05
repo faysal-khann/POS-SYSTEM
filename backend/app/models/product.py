@@ -56,6 +56,8 @@ class Product(Base):
     brand = relationship("Brand")
     unit = relationship("Unit")
 
+    WholesalePrice = Column(Numeric(18, 2), nullable=True)
+
 
     
 

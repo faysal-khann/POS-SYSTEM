@@ -27,6 +27,7 @@ class ProductBase(BaseModel):
     ImageUrl: Optional[str] = None
     Status: Optional[str] = "Active"
     Description: Optional[str] = None
+    WholesalePrice: Optional[float] = None
 
 
 class ProductCreate(ProductBase):

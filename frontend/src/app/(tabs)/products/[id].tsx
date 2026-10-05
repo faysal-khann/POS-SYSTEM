@@ -29,34 +29,34 @@ import Barcode from "react-native-barcode-svg";
 import { generateEAN13 } from "../../../utils/barcode";
 import { getFullImageUrl } from "../../../services/productApi";
 const Input = ({
-    label,
-    value,
-    onChangeText,
-    placeholder,
-    keyboardType = "default",
-    required,
-  }: {
-    label: string;
-    value: string;
-    onChangeText: (v: string) => void;
-    placeholder: string;
-    keyboardType?: "default" | "numeric" | "phone-pad";
-    required?: boolean;
-  }) => (
-    <View className="mb-4">
-      <Text className="text-sm font-medium text-gray-700 mb-1.5">
-        {label} {required && <Text className="text-red-500">*</Text>}
-      </Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor="#9CA3AF"
-        keyboardType={keyboardType}
-        className="border border-gray-200 rounded-xl px-3 py-3 text-sm text-gray-800 bg-white"
-      />
-    </View>
-  );
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  keyboardType = "default",
+  required,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (v: string) => void;
+  placeholder: string;
+  keyboardType?: "default" | "numeric" | "phone-pad";
+  required?: boolean;
+}) => (
+  <View className="mb-4">
+    <Text className="text-sm font-medium text-gray-700 mb-1.5">
+      {label} {required && <Text className="text-red-500">*</Text>}
+    </Text>
+    <TextInput
+      value={value}
+      onChangeText={onChangeText}
+      placeholder={placeholder}
+      placeholderTextColor="#9CA3AF"
+      keyboardType={keyboardType}
+      className="border border-gray-200 rounded-xl px-3 py-3 text-sm text-gray-800 bg-white"
+    />
+  </View>
+);
 
 export default function EditProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -79,6 +79,7 @@ export default function EditProductScreen() {
     UnitID: 0,
     PurchasePrice: 0,
     SalePrice: 0,
+    WholesalePrice: null,
     TaxPercent: 0,
     OpeningStock: 0,
     ReorderLevel: 0,
@@ -112,6 +113,7 @@ export default function EditProductScreen() {
           UnitID: product.UnitID,
           PurchasePrice: product.PurchasePrice,
           SalePrice: product.SalePrice,
+          WholesalePrice: product.WholesalePrice ?? null, 
           TaxPercent: product.TaxPercent,
           OpeningStock: product.OpeningStock,
           ReorderLevel: product.ReorderLevel,
@@ -136,40 +138,46 @@ export default function EditProductScreen() {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
- const [uploading, setUploading] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
-const pickImage = async () => {
-  const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (!permission.granted) {
-    Alert.alert("Permission needed", "Allow photo access to add a product image.");
-    return;
-  }
-
-  const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ImagePicker.MediaTypeOptions.Images,
-    quality: 0.7,
-    allowsEditing: true,
-    aspect: [1, 1],
-  });
-
-  if (!result.canceled) {
-    const localUri = result.assets[0].uri;
-    setImageUri(localUri); // show local preview immediately
-
-    try {
-      setUploading(true);
-      const uploadedUrl = await uploadProductImage(localUri);
-      update("ImageUrl", uploadedUrl); // real server URL saved into form
-    } catch (err) {
-      console.error(err);
-      Alert.alert("Upload failed", "Couldn't upload image. Please try again.");
-      setImageUri(null);
-      update("ImageUrl", "");
-    } finally {
-      setUploading(false);
+  const pickImage = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert(
+        "Permission needed",
+        "Allow photo access to add a product image.",
+      );
+      return;
     }
-  }
-};
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.7,
+      allowsEditing: true,
+      aspect: [1, 1],
+    });
+
+    if (!result.canceled) {
+      const localUri = result.assets[0].uri;
+      setImageUri(localUri); // show local preview immediately
+
+      try {
+        setUploading(true);
+        const uploadedUrl = await uploadProductImage(localUri);
+        update("ImageUrl", uploadedUrl); // real server URL saved into form
+      } catch (err) {
+        console.error(err);
+        Alert.alert(
+          "Upload failed",
+          "Couldn't upload image. Please try again.",
+        );
+        setImageUri(null);
+        update("ImageUrl", "");
+      } finally {
+        setUploading(false);
+      }
+    }
+  };
 
   const removeImage = () => {
     setImageUri(null);
@@ -204,8 +212,6 @@ const pickImage = async () => {
     }
   };
 
-  
-
   if (loading) {
     return (
       <View className="flex-1 items-center justify-center bg-gray-50">
@@ -218,7 +224,10 @@ const pickImage = async () => {
     return (
       <View className="flex-1 items-center justify-center bg-gray-50 px-6">
         <Text className="text-red-500 text-center mb-3">{error}</Text>
-        <TouchableOpacity onPress={() => router.back()} className="bg-blue-600 px-4 py-2 rounded-lg">
+        <TouchableOpacity
+          onPress={() => router.back()}
+          className="bg-blue-600 px-4 py-2 rounded-lg"
+        >
           <Text className="text-white font-medium">Go Back</Text>
         </TouchableOpacity>
       </View>
@@ -232,7 +241,9 @@ const pickImage = async () => {
           <TouchableOpacity onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={22} color="#111827" />
           </TouchableOpacity>
-          <Text className="text-lg font-semibold text-gray-900 ml-3">Edit Product</Text>
+          <Text className="text-lg font-semibold text-gray-900 ml-3">
+            Edit Product
+          </Text>
         </View>
         <TouchableOpacity
           onPress={handleUpdate}
@@ -244,17 +255,26 @@ const pickImage = async () => {
           ) : (
             <>
               <Ionicons name="save-outline" size={14} color="#fff" />
-              <Text className="text-white text-sm font-medium ml-1.5">Update</Text>
+              <Text className="text-white text-sm font-medium ml-1.5">
+                Update
+              </Text>
             </>
           )}
         </TouchableOpacity>
       </View>
 
-      <ScrollView className="flex-1 px-4 pt-4" contentContainerStyle={{ paddingBottom: 40 }}>
-        <Text className="text-base font-semibold text-gray-900 mb-3">Basic Information</Text>
+      <ScrollView
+        className="flex-1 px-4 pt-4"
+        contentContainerStyle={{ paddingBottom: 40 }}
+      >
+        <Text className="text-base font-semibold text-gray-900 mb-3">
+          Basic Information
+        </Text>
 
         <View className="mb-4">
-          <Text className="text-sm font-medium text-gray-700 mb-1.5">Product Code</Text>
+          <Text className="text-sm font-medium text-gray-700 mb-1.5">
+            Product Code
+          </Text>
           <View className="border border-gray-200 rounded-xl px-3 py-3 bg-gray-100">
             <Text className="text-sm text-gray-500">{productCode}</Text>
           </View>
@@ -267,7 +287,7 @@ const pickImage = async () => {
           onChangeText={(v) => update("ProductName", v)}
           placeholder="Enter product name"
         />
-         <View className="mb-4">
+        <View className="mb-4">
           <View className="flex-row items-center justify-between mb-1.5">
             <Text className="text-sm font-medium text-gray-700">Barcode</Text>
             <TouchableOpacity
@@ -351,6 +371,15 @@ const pickImage = async () => {
           keyboardType="numeric"
         />
         <Input
+          label="Wholesale Price (optional)"
+          value={form.WholesalePrice != null ? String(form.WholesalePrice) : ""}
+          onChangeText={(v) =>
+            update("WholesalePrice", v.trim() === "" ? null : Number(v) || 0)
+          }
+          placeholder="0.00"
+          keyboardType="numeric"
+        />
+        <Input
           label="Tax %"
           value={String(form.TaxPercent ?? 0)}
           onChangeText={(v) => update("TaxPercent", Number(v) || 0)}
@@ -370,11 +399,16 @@ const pickImage = async () => {
         </Text>
 
         <View className="mb-4">
-          <Text className="text-sm font-medium text-gray-700 mb-1.5">Product Image</Text>
+          <Text className="text-sm font-medium text-gray-700 mb-1.5">
+            Product Image
+          </Text>
 
           {imageUri ? (
             <View className="relative w-28 h-28">
-              <Image source={{ uri: getFullImageUrl(imageUri) }} className="w-28 h-28 rounded-xl" />
+              <Image
+                source={{ uri: getFullImageUrl(imageUri) }}
+                className="w-28 h-28 rounded-xl"
+              />
               <TouchableOpacity
                 onPress={removeImage}
                 className="absolute -top-2 -right-2 bg-red-500 rounded-full p-1"

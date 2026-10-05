@@ -23,6 +23,7 @@ export type ProductInput = {
   ImageUrl?: string;
   Status?: "Active" | "Inactive";
   Description?: string;
+  WholesalePrice?: number | null;
 };
 
 export type Product = ProductInput & {

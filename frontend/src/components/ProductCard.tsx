@@ -4,15 +4,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { getFullImageUrl } from "../services/productApi";
 
-
-
 export default function ProductCard({ product, onDeleted }: any) {
   const router = useRouter();
 
   return (
     <View style={styles.card}>
       {product.ImageUrl ? (
-       <Image source={{ uri: getFullImageUrl(product.ImageUrl) }} className="w-20 h-20" />
+        <Image
+          source={{ uri: getFullImageUrl(product.ImageUrl) }}
+          className="w-20 h-20"
+        />
       ) : (
         <Ionicons name="cube-outline" size={22} color="#9CA3AF" />
       )}
@@ -27,6 +28,11 @@ export default function ProductCard({ product, onDeleted }: any) {
             ৳{product.PurchasePrice} → ৳{product.SalePrice}
           </Text>
         </View>
+        {product.WholesalePrice != null && (
+          <Text style={styles.subtext}>
+            Wholesale: ৳{product.WholesalePrice}
+          </Text>
+        )}
         <View style={styles.row}>
           <Text style={styles.stock}>Stock: {product.CurrentStock}</Text>
           <View

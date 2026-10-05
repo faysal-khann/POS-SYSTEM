@@ -101,6 +101,7 @@ def product_to_response(product: Product):
 
         "PurchasePrice": product.PurchasePrice,
         "SalePrice": product.SalePrice,
+        "WholesalePrice": product.WholesalePrice,
         "TaxPercent": product.TaxPercent,
 
         "OpeningStock": product.OpeningStock,

@@ -81,6 +81,7 @@ export default function AddProductScreen() {
     UnitID: 0,
     PurchasePrice: 0,
     SalePrice: 0,
+    WholesalePrice: null,
     TaxPercent: 0,
     OpeningStock: 0,
     ReorderLevel: 0,
@@ -342,6 +343,15 @@ export default function AddProductScreen() {
           label="Sale Price"
           value={String(form.SalePrice ?? 0)}
           onChangeText={(v) => update("SalePrice", Number(v) || 0)}
+          placeholder="0.00"
+          keyboardType="numeric"
+        />
+        <Input
+          label="Wholesale Price (optional)"
+          value={form.WholesalePrice != null ? String(form.WholesalePrice) : ""}
+          onChangeText={(v) =>
+            update("WholesalePrice", v.trim() === "" ? null : Number(v) || 0)
+          }
           placeholder="0.00"
           keyboardType="numeric"
         />

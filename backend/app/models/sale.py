@@ -18,7 +18,7 @@ class Sale(Base):
     DiscountAmount = Column(Numeric(18, 2), default=0)
     TaxAmount = Column(Numeric(18, 2), default=0)
     GrandTotal = Column(Numeric(18, 2), default=0)
-    PaymentMethod = Column(String(20))
+    PaymentMethod = Column(String(100))
     PaymentStatus = Column(String(20), default="Paid")
     ReceivedAmount = Column(Numeric(18, 2), default=0)
     ChangeAmount = Column(Numeric(18, 2), default=0)
@@ -31,6 +31,8 @@ class Sale(Base):
     
     items = relationship("SaleItem", back_populates="sale", cascade="all, delete")
     customer = relationship("Customer")
+    # payments = relationship("SalePayment", back_populates="sale", cascade="all, delete")
+
    
 
 

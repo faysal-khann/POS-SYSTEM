@@ -60,7 +60,11 @@ type CartLine = {
   UnitPrice: number;
   DiscountPercent: number;
   TaxPercent: number;
+  ManualPrice?: boolean;
 };
+
+const SPLIT = "Cash + Card";
+type SingleMethod = "Cash" | "Card" | "Mobile";
 
 const PAYMENT_METHODS: {
   label: string;
@@ -69,8 +73,36 @@ const PAYMENT_METHODS: {
   { label: "Cash", icon: "cash-outline" },
   { label: "Card", icon: "card-outline" },
   { label: "Mobile", icon: "phone-portrait-outline" },
-  { label: "Other", icon: "ellipsis-horizontal-circle-outline" },
+  { label: SPLIT, icon: "swap-horizontal-outline" },
 ];
+
+const BANKS = [
+  "Dutch-Bangla Bank",
+  "BRAC Bank",
+  "City Bank",
+  "Islami Bank",
+  "Eastern Bank",
+  "Standard Chartered",
+  "Sonali Bank",
+  "Other Bank",
+].map((name, i) => ({ id: i + 1, name }));
+
+const PAYMENT_PROVIDERS: Record<
+  SingleMethod,
+  { label: string; options: { id: number; name: string }[] }
+> = {
+  Cash: { label: "Cash Type", options: [{ id: 1, name: "Cash by hand" }] },
+  Card: { label: "Bank", options: BANKS },
+  Mobile: {
+    label: "Mobile Banking",
+    options: [
+      { id: 1, name: "bKash" },
+      { id: 2, name: "Rocket" },
+      { id: 3, name: "Nagad" },
+    ],
+  },
+};
+
 const DiscountTypeToggle = ({
   value,
   onChange,
@@ -101,6 +133,15 @@ const formatCurrency = (n: number) =>
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+
+const priceFor = (p: Product, typeId: number) => {
+  const retail = Number(p.SalePrice ?? 0);
+  if (typeId === 2) {
+    const wholesale = Number(p.WholesalePrice ?? 0);
+    return wholesale > 0 ? wholesale : retail;
+  }
+  return retail;
+};
 
 const animateNext = () =>
   LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -176,6 +217,11 @@ export default function POSScreen() {
 
   const [loyaltyPointsUsed, setLoyaltyPointsUsed] = useState(0);
 
+  const [providerId, setProviderId] = useState<number | undefined>(1); // Cash by hand
+  const [splitCash, setSplitCash] = useState("");
+  const [splitCard, setSplitCard] = useState("");
+  const [splitBankId, setSplitBankId] = useState<number | undefined>();
+
   useEffect(() => {
     return () => {
       if (scanMsgTimer.current) clearTimeout(scanMsgTimer.current);
@@ -238,6 +284,7 @@ export default function POSScreen() {
             UnitPrice: i.UnitPrice,
             DiscountPercent: i.DiscountPercent,
             TaxPercent: i.TaxPercent,
+            ManualPrice: true,
           })),
         );
         if (held.CustomerID) setCustomerId(held.CustomerID);
@@ -250,6 +297,17 @@ export default function POSScreen() {
     })();
   }, [resumeSaleId, resumeType]);
 
+  const changePriceType = (id: number) => {
+    setPriceTypeId(id);
+    animateNext();
+    setCart((prev) =>
+      prev.map((l) => {
+        if (l.ManualPrice) return l; // keep prices the cashier typed in
+        const p = products.find((x) => x.ProductID === l.ProductID);
+        return p ? { ...l, UnitPrice: priceFor(p, id) } : l;
+      }),
+    );
+  };
   const addProduct = (p: Product) => {
     animateNext();
     setCart((prev) => {
@@ -265,7 +323,7 @@ export default function POSScreen() {
           ProductID: p.ProductID,
           ProductName: p.ProductName,
           Qty: 1,
-          UnitPrice: Number(p.SalePrice ?? 0),
+          UnitPrice: priceFor(p, priceTypeId),
           DiscountPercent: 0,
           TaxPercent: Number(p.TaxPercent ?? 0),
         },
@@ -380,7 +438,13 @@ export default function POSScreen() {
   ) => {
     setCart((prev) =>
       prev.map((l) =>
-        l.ProductID === productId ? { ...l, [field]: value } : l,
+        l.ProductID === productId
+          ? {
+              ...l,
+              [field]: value,
+              ...(field === "UnitPrice" ? { ManualPrice: true } : {}),
+            }
+          : l,
       ),
     );
   };
@@ -434,10 +498,39 @@ export default function POSScreen() {
     return { subTotal, lineDiscount, tax, manualDiscountAmt, redeemAmt, grand };
   }, [cart, discountType, discountValue, pointsToRedeem]);
 
+  const isSplit = paymentMethod === SPLIT;
   const receivedNum = parseFloat(received) || 0;
-  const change = Math.max(0, receivedNum - totals.grand);
+  const splitCashNum = parseFloat(splitCash) || 0;
+  const splitCardNum = parseFloat(splitCard) || 0;
+
+  // Card / Mobile are paid exactly; Cash uses the Received input; Split sums both parts
+  const paidNum = isSplit
+    ? splitCashNum + splitCardNum
+    : paymentMethod === "Cash"
+      ? receivedNum
+      : totals.grand;
+
+  // In split mode only the cash part can produce change
+  const change = Math.max(
+    0,
+    Math.min(paidNum - totals.grand, isSplit ? splitCashNum : Infinity),
+  );
   const isShort =
-    paymentMethod === "Cash" && receivedNum < totals.grand && cart.length > 0;
+    (paymentMethod === "Cash" || isSplit) &&
+    paidNum < totals.grand &&
+    cart.length > 0;
+
+  const providerName = !isSplit
+    ? PAYMENT_PROVIDERS[paymentMethod as SingleMethod]?.options.find(
+        (o) => o.id === providerId,
+      )?.name
+    : undefined;
+  const splitBankName = BANKS.find((b) => b.id === splitBankId)?.name;
+
+  const selectMethod = (m: string) => {
+    setPaymentMethod(m);
+    setProviderId(m === "Cash" ? 1 : undefined);
+  };
 
   // Handy quick-cash buttons: exact amount, then round-up denominations.
   const quickAmounts = useMemo(() => {
@@ -454,6 +547,19 @@ export default function POSScreen() {
       Alert.alert("Empty cart", "Add at least one product.");
       return;
     }
+    if (!isSplit && !providerId) {
+      Alert.alert(
+        "Select option",
+        paymentMethod === "Card"
+          ? "Please select a bank."
+          : "Please select a payment option.",
+      );
+      return;
+    }
+    if (isSplit && splitCardNum > 0 && !splitBankId) {
+      Alert.alert("Select bank", "Please select the bank for the card amount.");
+      return;
+    }
     if (status === "Held" && !showParkPrompt) {
       setShowParkPrompt(true);
       return;
@@ -465,9 +571,7 @@ export default function POSScreen() {
     if (status === "Completed" && isShort) {
       Alert.alert(
         "Insufficient amount",
-        `Received (${formatCurrency(receivedNum)}) is less than the total (${formatCurrency(
-          totals.grand,
-        )}). Continue anyway?`,
+        `Received (${formatCurrency(paidNum)}) is less than the total (${formatCurrency(totals.grand)}). Continue anyway?`,
         [
           { text: "Cancel", style: "cancel" },
           { text: "Continue", onPress: () => submitSale(status) },
@@ -481,6 +585,40 @@ export default function POSScreen() {
   const submitSale = async (status: "Completed" | "Held" | "Draft") => {
     try {
       setSaving(true);
+
+      // Amounts recorded as payments never include change
+      const cashKept = Math.max(0, splitCashNum - change); // split mode: cash actually kept
+      const singleAmount = Math.min(paidNum, totals.grand);
+
+      const payments = isSplit
+        ? [
+            ...(cashKept > 0
+              ? [
+                  {
+                    Method: "Cash",
+                    ProviderID: 1, // Cash by hand
+                    Amount: cashKept,
+                  },
+                ]
+              : []),
+            ...(splitCardNum > 0
+              ? [
+                  {
+                    Method: "Card",
+                    ProviderID: splitBankId,
+                    Amount: splitCardNum,
+                  },
+                ]
+              : []),
+          ]
+        : [
+            {
+              Method: paymentMethod,
+              ProviderID: providerId,
+              Amount: singleAmount,
+            },
+          ];
+
       const result = await createSale({
         CompanyID: session.CompanyID,
         BranchID: session.PrimaryBranchID,
@@ -491,12 +629,18 @@ export default function POSScreen() {
           "Retail Price",
         SubTotal: totals.subTotal,
         DiscountAmount: totals.manualDiscountAmt,
-
+        DiscountType: discountType,
+        DiscountValue: parseFloat(discountValue) || 0,
         TaxAmount: totals.tax,
         GrandTotal: totals.grand,
-        PaymentMethod: paymentMethod,
-        ReceivedAmount: receivedNum,
+        PaymentMethod: isSplit
+          ? "Cash + Card"
+          : paymentMethod === "Cash"
+            ? "Cash"
+            : `${paymentMethod} - ${providerName}`,
+        ReceivedAmount: paidNum,
         ChangeAmount: change,
+        Payments: status === "Completed" ? payments : [],
         Status: status,
         items: cart.map((l) => ({
           ProductID: l.ProductID,
@@ -681,6 +825,11 @@ export default function POSScreen() {
                 <Text className="font-semibold">{invoiceNo}</Text>
                 <Text className="text-gray-400">{"  ·  "}</Text>
                 <Text>{customerName}</Text>
+                {priceTypeId === 2 && (
+                  <Text className="text-orange-600 font-semibold">
+                    {"  ·  Wholesale"}
+                  </Text>
+                )}
               </Text>
             </View>
             <Ionicons
@@ -742,7 +891,7 @@ export default function POSScreen() {
                 placeholder="Select price type"
                 options={PRICE_TYPE_OPTIONS}
                 selectedId={priceTypeId}
-                onSelect={setPriceTypeId}
+                onSelect={changePriceType}
               />
 
               {/* Customer */}
@@ -946,7 +1095,9 @@ export default function POSScreen() {
 
       {/* Sticky bottom bar */}
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={0}
       >
         <View
           className="bg-white border-t border-gray-200 px-4 pt-3 pb-6"
@@ -1026,19 +1177,19 @@ export default function POSScreen() {
             {PAYMENT_METHODS.map((m) => (
               <TouchableOpacity
                 key={m.label}
-                onPress={() => setPaymentMethod(m.label)}
-                className={`flex-1 mr-2 rounded-lg py-2 items-center flex-row justify-center ${
+                onPress={() => selectMethod(m.label)}
+                className={`flex-1 mr-2 rounded-lg py-2 items-center justify-center ${
                   paymentMethod === m.label ? "bg-blue-600" : "bg-gray-100"
                 }`}
               >
                 <Ionicons
                   name={m.icon}
-                  size={13}
+                  size={14}
                   color={paymentMethod === m.label ? "#fff" : "#4B5563"}
-                  style={{ marginRight: 4 }}
                 />
                 <Text
-                  className={`text-xs font-medium ${
+                  numberOfLines={1}
+                  className={`text-[10px] font-medium mt-0.5 ${
                     paymentMethod === m.label ? "text-white" : "text-gray-600"
                   }`}
                 >
@@ -1048,41 +1199,120 @@ export default function POSScreen() {
             ))}
           </View>
 
-          <View className="flex-row items-center mb-2">
-            <View className="flex-1 mr-2">
-              <Text className="text-xs text-gray-400 mb-1">Received</Text>
-              <TextInput
-                value={received}
-                onChangeText={setReceived}
-                keyboardType="numeric"
-                className={`border rounded-lg px-2 py-2 text-sm text-gray-800 ${
-                  isShort ? "border-red-300 bg-red-50" : "border-gray-200"
-                }`}
+          {/* Single method: provider dropdown */}
+          {!isSplit && (
+            <View className="mb-3">
+              <Dropdown
+                label={PAYMENT_PROVIDERS[paymentMethod as SingleMethod].label}
+                placeholder={
+                  paymentMethod === "Card" ? "Select bank" : "Select option"
+                }
+                options={
+                  PAYMENT_PROVIDERS[paymentMethod as SingleMethod].options
+                }
+                selectedId={providerId}
+                onSelect={setProviderId}
               />
             </View>
-            <View className="flex-1">
-              <Text className="text-xs text-gray-400 mb-1">
-                {isShort ? "Short by" : "Change"}
+          )}
+
+          {/* Split: cash + card */}
+          {isSplit && (
+            <View className="border border-gray-200 rounded-xl p-3 mb-3">
+              <Text className="text-xs text-gray-500 mb-1">
+                Cash by hand (৳)
               </Text>
-              <View
-                className={`border rounded-lg px-2 py-2 ${
-                  isShort
-                    ? "border-red-200 bg-red-50"
-                    : "border-gray-200 bg-gray-50"
-                }`}
-              >
+              <TextInput
+                value={splitCash}
+                onChangeText={setSplitCash}
+                keyboardType="numeric"
+                placeholder="0"
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white mb-3"
+              />
+
+              <Dropdown
+                label="Card Bank"
+                placeholder="Select bank"
+                options={BANKS}
+                selectedId={splitBankId}
+                onSelect={setSplitBankId}
+              />
+
+              <View className="flex-row items-center justify-between mt-3 mb-1">
+                <Text className="text-xs text-gray-500">Card amount (৳)</Text>
+                <TouchableOpacity
+                  onPress={() =>
+                    setSplitCard(
+                      String(Math.max(0, totals.grand - splitCashNum)),
+                    )
+                  }
+                >
+                  <Text className="text-xs text-blue-600">Fill remaining</Text>
+                </TouchableOpacity>
+              </View>
+              <TextInput
+                value={splitCard}
+                onChangeText={setSplitCard}
+                keyboardType="numeric"
+                placeholder="0"
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white"
+              />
+
+              <View className="flex-row justify-between mt-3 pt-2 border-t border-gray-100">
+                <Text className="text-xs text-gray-500">
+                  Paid {formatCurrency(paidNum)}
+                </Text>
                 <Text
-                  className={`text-sm font-semibold ${
+                  className={`text-xs font-semibold ${
                     isShort ? "text-red-600" : "text-green-600"
                   }`}
                 >
                   {isShort
-                    ? formatCurrency(totals.grand - receivedNum)
-                    : formatCurrency(change)}
+                    ? `Short ${formatCurrency(totals.grand - paidNum)}`
+                    : `Change ${formatCurrency(change)}`}
                 </Text>
               </View>
             </View>
-          </View>
+          )}
+
+          {/* Cash: received + change */}
+          {paymentMethod === "Cash" && (
+            <View className="flex-row items-center mb-2">
+              <View className="flex-1 mr-2">
+                <Text className="text-xs text-gray-400 mb-1">Received</Text>
+                <TextInput
+                  value={received}
+                  onChangeText={setReceived}
+                  keyboardType="numeric"
+                  className={`border rounded-lg px-2 py-2 text-sm text-gray-800 ${
+                    isShort ? "border-red-300 bg-red-50" : "border-gray-200"
+                  }`}
+                />
+              </View>
+              <View className="flex-1">
+                <Text className="text-xs text-gray-400 mb-1">
+                  {isShort ? "Short by" : "Change"}
+                </Text>
+                <View
+                  className={`border rounded-lg px-2 py-2 ${
+                    isShort
+                      ? "border-red-200 bg-red-50"
+                      : "border-gray-200 bg-gray-50"
+                  }`}
+                >
+                  <Text
+                    className={`text-sm font-semibold ${
+                      isShort ? "text-red-600" : "text-green-600"
+                    }`}
+                  >
+                    {isShort
+                      ? formatCurrency(totals.grand - paidNum)
+                      : formatCurrency(change)}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
 
           {/* Quick cash amounts */}
           {paymentMethod === "Cash" && quickAmounts.length > 0 && (
