@@ -7,7 +7,12 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Modal,
+  Pressable,
+  Keyboard,
+  Platform,
 } from "react-native";
+import { getProducts, Product } from "../../../../services/productApi";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import SideMenu from "../../../../components/SideMenu";
@@ -18,13 +23,26 @@ import {
   ReturnableItem,
   SaleLookupResult,
 } from "../../../../services/saleReturnApi";
-import { getSales, SaleListItem } from "../../../../services/saleApi";
+import {
+  getSales,
+  createSale,
+  SaleListItem,
+  SaleCreateInput,
+} from "../../../../services/saleApi";
 import { getStoredUser } from "../../../../services/authApi";
 
 const REASONS = ["Damaged", "Wrong Item", "Changed Mind", "Expired", "Other"];
 const REFUND_METHODS = ["Cash", "Card", "Mobile", "Other"];
 
 type ReturnLine = ReturnableItem & { ReturnQty: number };
+type ExchangeLine = {
+  ProductID: number;
+  ProductName: string;
+  UnitPrice: number;
+  TaxPercent: number;
+  Qty: number;
+  Stock: number;
+};
 
 export default function ReturnsRefundsScreen() {
   const [menuVisible, setMenuVisible] = useState(false);
@@ -145,7 +163,92 @@ export default function ReturnsRefundsScreen() {
   }, [lines]);
 
   const totalItemsSelected = lines.filter((l) => l.ReturnQty > 0).length;
+  const [exchange, setExchange] = useState<ExchangeLine[]>([]);
+  const [showPicker, setShowPicker] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [pSearch, setPSearch] = useState("");
+  const [kbHeight, setKbHeight] = useState(0);
 
+  useEffect(() => {
+    const s = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      (e) => setKbHeight(e.endCoordinates.height),
+    );
+    const h = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => setKbHeight(0),
+    );
+    return () => {
+      s.remove();
+      h.remove();
+    };
+  }, []);
+
+  const openPicker = async () => {
+    setShowPicker(true);
+    if (products.length === 0) {
+      try {
+        const all = await getProducts();
+        setProducts(all.filter((p) => p.Status !== "Inactive"));
+      } catch {
+        Alert.alert("Error", "Couldn't load products.");
+      }
+    }
+  };
+
+  const addExchange = (p: Product) => {
+    setExchange((prev) => {
+      const found = prev.find((l) => l.ProductID === p.ProductID);
+      if (found) {
+        return prev.map((l) =>
+          l.ProductID === p.ProductID ? { ...l, Qty: l.Qty + 1 } : l,
+        );
+      }
+      return [
+        ...prev,
+        {
+          ProductID: p.ProductID,
+          ProductName: p.ProductName,
+          UnitPrice: p.SalePrice ?? 0,
+          TaxPercent: p.TaxPercent ?? 0,
+          Qty: 1,
+          Stock: p.CurrentStock,
+        },
+      ];
+    });
+    setShowPicker(false);
+    setPSearch("");
+  };
+
+  const setExchangeQty = (id: number, qty: number) =>
+    setExchange((prev) =>
+      qty <= 0
+        ? prev.filter((l) => l.ProductID !== id)
+        : prev.map((l) => (l.ProductID === id ? { ...l, Qty: qty } : l)),
+    );
+
+  const exTotals = useMemo(() => {
+    const sub = exchange.reduce((s, l) => s + l.Qty * l.UnitPrice, 0);
+    const tax = exchange.reduce(
+      (s, l) => s + (l.Qty * l.UnitPrice * l.TaxPercent) / 100,
+      0,
+    );
+    return { sub, tax, grand: sub + tax };
+  }, [exchange]);
+
+  // > 0: customer pays the difference, < 0: you refund the difference
+  const net = exTotals.grand - totals.grand;
+
+  const filteredExchangeProducts = useMemo(() => {
+    const q = pSearch.trim().toLowerCase();
+    if (!q) return products;
+    return products.filter(
+      (p) =>
+        p.ProductName.toLowerCase().includes(q) ||
+        (p.ProductCode ?? "").toLowerCase().includes(q) ||
+        (p.Barcode ?? "").toLowerCase().includes(q),
+    );
+  }, [products, pSearch]);
   const handleProcess = async () => {
     if (!sale) {
       Alert.alert("No invoice", "Search for an invoice first.");
@@ -165,48 +268,101 @@ export default function ReturnsRefundsScreen() {
 
     try {
       setSaving(true);
-      const result = await createSaleReturn({
-        OriginalSaleID: sale.SaleID,
-        ReturnType: returnType,
-        CompanyID: sale.CompanyID,
-        BranchID: sale.BranchID,
-        CustomerID: sale.CustomerID ?? undefined,
-        UserID: session.UserID,
-        Reason: reason,
-        Note: note || undefined,
-        SubTotal: totals.subTotal,
-        TaxAmount: totals.tax,
-        GrandTotal: totals.grand,
-        RefundMethod: refundMethod,
-        ReceivedAmount: totals.grand,
-        items: itemsToReturn.map((l) => ({
-          ProductID: l.ProductID,
-          ReturnQty: l.ReturnQty,
-          UnitPrice: l.UnitPrice,
-          LineTotal: lineTotal(l),
-        })),
-      });
+      const isExchange = exchange.length > 0;
 
-      Alert.alert(
-        "Success",
-        `Return processed. Refund: ৳ ${result.GrandTotal.toFixed(2)}`,
-        [
-          {
-            text: "OK",
-            onPress: () => {
-              clearSelection();
-              setNote("");
-              setReason(undefined);
-              loadSales(); // refresh list after a return
-            },
+      // 1) sale for the new items (cash, paid in full)
+      let exchangeInvoice: string | undefined;
+      if (isExchange) {
+        const exSale = await createSale({
+          CompanyID: sale.CompanyID,
+          BranchID: sale.BranchID,
+          CustomerID: sale.CustomerID ?? undefined,
+          UserID: session.UserID,
+          PriceType: "Retail Price",
+          SubTotal: exTotals.sub,
+          DiscountAmount: 0,
+          TaxAmount: exTotals.tax,
+          GrandTotal: exTotals.grand,
+          PaymentMethod: "Cash",
+          ReceivedAmount: exTotals.grand,
+          ChangeAmount: 0,
+          Payments: [{ Method: "Cash", ProviderID: 1, Amount: exTotals.grand }],
+          Status: "Completed",
+          items: exchange.map((l) => ({
+            ProductID: l.ProductID,
+            Qty: l.Qty,
+            UnitPrice: l.UnitPrice,
+            DiscountPercent: 0,
+            TaxPercent: l.TaxPercent,
+            LineTotal: l.Qty * l.UnitPrice,
+          })),
+        } as SaleCreateInput);
+        exchangeInvoice = exSale.InvoiceNo;
+      }
+
+      // 2) the return for the old items
+      let result;
+      try {
+        result = await createSaleReturn({
+          OriginalSaleID: sale.SaleID,
+          ReturnType: returnType,
+          CompanyID: sale.CompanyID,
+          BranchID: sale.BranchID,
+          CustomerID: sale.CustomerID ?? undefined,
+          UserID: session.UserID,
+          Reason: reason,
+          Note: isExchange
+            ? `Exchange -> ${exchangeInvoice}${note ? ` | ${note}` : ""}`
+            : note || undefined,
+          SubTotal: totals.subTotal,
+          TaxAmount: totals.tax,
+          GrandTotal: totals.grand,
+          RefundMethod: isExchange ? "Cash" : refundMethod,
+          ReceivedAmount: totals.grand,
+          items: itemsToReturn.map((l) => ({
+            ProductID: l.ProductID,
+            ReturnQty: l.ReturnQty,
+            UnitPrice: l.UnitPrice,
+            LineTotal: lineTotal(l),
+          })),
+        });
+      } catch (e: any) {
+        if (isExchange) {
+          Alert.alert(
+            "Return failed",
+            `The new sale ${exchangeInvoice} WAS saved, but the return was not. ` +
+              `Process the return again without adding new items.`,
+          );
+          return;
+        }
+        throw e;
+      }
+
+      const msg = !isExchange
+        ? `Return processed. Refund: ৳ ${result.GrandTotal.toFixed(2)}`
+        : net > 0.005
+          ? `Exchange done (${exchangeInvoice}).\nCustomer pays: ৳ ${net.toFixed(2)}`
+          : net < -0.005
+            ? `Exchange done (${exchangeInvoice}).\nRefund customer: ৳ ${Math.abs(net).toFixed(2)}`
+            : `Exchange done (${exchangeInvoice}).\nEven exchange, no money to collect.`;
+
+      Alert.alert("Success", msg, [
+        {
+          text: "OK",
+          onPress: () => {
+            clearSelection();
+            setNote("");
+            setReason(undefined);
+            loadSales();
           },
-        ],
-      );
+        },
+      ]);
     } catch (err: any) {
       console.error(err);
+      const d = err?.response?.data;
       Alert.alert(
         "Error",
-        err?.response?.data?.detail || "Couldn't process return.",
+        d?.detail || d?.title || err?.message || "Couldn't process.",
       );
     } finally {
       setSaving(false);
@@ -435,6 +591,73 @@ export default function ReturnsRefundsScreen() {
                 </View>
               </View>
             ))}
+            {/* Exchange items */}
+            <View className="bg-white border border-gray-200 rounded-xl p-4 mb-4">
+              <View className="flex-row items-center justify-between mb-2">
+                <Text className="text-sm font-semibold text-gray-900">
+                  Exchange items (optional)
+                </Text>
+                <TouchableOpacity
+                  onPress={openPicker}
+                  className="flex-row items-center"
+                >
+                  <Ionicons
+                    name="add-circle-outline"
+                    size={18}
+                    color="#2563EB"
+                  />
+                  <Text className="text-sm text-blue-600 ml-1">
+                    Add product
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {exchange.length === 0 && (
+                <Text className="text-xs text-gray-400">
+                  Add products the customer is taking instead.
+                </Text>
+              )}
+
+              {exchange.map((l) => (
+                <View
+                  key={l.ProductID}
+                  className="flex-row items-center py-2 border-t border-gray-100"
+                >
+                  <View className="flex-1">
+                    <Text className="text-sm text-gray-900">
+                      {l.ProductName}
+                    </Text>
+                    <Text className="text-xs text-gray-500">
+                      ৳ {l.UnitPrice} · stock {l.Stock}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => setExchangeQty(l.ProductID, l.Qty - 1)}
+                  >
+                    <Ionicons
+                      name="remove-circle-outline"
+                      size={24}
+                      color="#6B7280"
+                    />
+                  </TouchableOpacity>
+                  <Text className="w-8 text-center text-sm text-gray-900">
+                    {l.Qty}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setExchangeQty(l.ProductID, l.Qty + 1)}
+                  >
+                    <Ionicons
+                      name="add-circle-outline"
+                      size={24}
+                      color="#2563EB"
+                    />
+                  </TouchableOpacity>
+                  <Text className="w-20 text-right text-sm font-medium text-gray-900">
+                    ৳ {(l.Qty * l.UnitPrice).toFixed(2)}
+                  </Text>
+                </View>
+              ))}
+            </View>
 
             {/* Totals */}
             <View className="bg-white border border-gray-200 rounded-xl p-4 mb-4">
@@ -464,6 +687,30 @@ export default function ReturnsRefundsScreen() {
                   ৳ {totals.grand.toFixed(2)}
                 </Text>
               </View>
+              {exchange.length > 0 && (
+                <View className="mt-3 pt-3 border-t border-gray-100">
+                  <View className="flex-row justify-between mb-1">
+                    <Text className="text-sm text-gray-600">New items</Text>
+                    <Text className="text-sm text-gray-900">
+                      ৳ {exTotals.grand.toFixed(2)}
+                    </Text>
+                  </View>
+                  <View className="flex-row justify-between">
+                    <Text className="text-base font-semibold text-gray-900">
+                      {net > 0.005
+                        ? "Customer pays"
+                        : net < -0.005
+                          ? "Refund customer"
+                          : "Even"}
+                    </Text>
+                    <Text
+                      className={`text-lg font-bold ${net > 0.005 ? "text-green-600" : "text-orange-600"}`}
+                    >
+                      ৳ {Math.abs(net).toFixed(2)}
+                    </Text>
+                  </View>
+                </View>
+              )}
             </View>
 
             {/* Refund method */}
@@ -506,7 +753,9 @@ export default function ReturnsRefundsScreen() {
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
                   <Text className="text-white font-semibold">
-                    Process Return ৳ {totals.grand.toFixed(2)}
+                    {exchange.length > 0
+                      ? "Process Exchange"
+                      : `Process Return ৳ ${totals.grand.toFixed(2)}`}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -514,6 +763,64 @@ export default function ReturnsRefundsScreen() {
           </>
         )}
       </ScrollView>
+
+      <Modal visible={showPicker} transparent animationType="slide">
+        <Pressable
+          className="flex-1 bg-black/40 justify-end"
+          style={{ paddingBottom: kbHeight }}
+          onPress={() => setShowPicker(false)}
+        >
+          <Pressable
+            className="bg-white rounded-t-2xl p-5 max-h-[75%]"
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View className="flex-row items-center justify-between mb-3">
+              <Text className="text-lg font-semibold text-gray-900">
+                Select Product
+              </Text>
+              <TouchableOpacity onPress={() => setShowPicker(false)}>
+                <Ionicons name="close" size={22} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <View className="flex-row items-center border border-gray-200 rounded-xl px-3 mb-3 bg-gray-50">
+              <Ionicons name="search" size={16} color="#9CA3AF" />
+              <TextInput
+                value={pSearch}
+                onChangeText={setPSearch}
+                placeholder="Name, code or barcode..."
+                placeholderTextColor="#9CA3AF"
+                autoCapitalize="none"
+                className="flex-1 ml-2 py-2.5 text-sm text-gray-800"
+              />
+            </View>
+
+            <ScrollView keyboardShouldPersistTaps="handled">
+              {filteredExchangeProducts.map((p) => (
+                <TouchableOpacity
+                  key={p.ProductID}
+                  onPress={() => addExchange(p)}
+                  disabled={p.CurrentStock <= 0}
+                  className="flex-row justify-between items-center py-3 border-b border-gray-100"
+                  style={{ opacity: p.CurrentStock <= 0 ? 0.4 : 1 }}
+                >
+                  <View className="flex-1 pr-3">
+                    <Text className="text-sm text-gray-900">
+                      {p.ProductName}
+                    </Text>
+                    <Text className="text-xs text-gray-500">
+                      Stock: {p.CurrentStock}
+                    </Text>
+                  </View>
+                  <Text className="text-sm font-semibold text-gray-900">
+                    ৳ {p.SalePrice ?? 0}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <SideMenu visible={menuVisible} onClose={() => setMenuVisible(false)} />
     </View>

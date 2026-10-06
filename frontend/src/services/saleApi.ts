@@ -35,6 +35,8 @@ export type SaleCreateInput = {
   items: SaleItemInput[];
 };
 
+
+
 export const getNextInvoiceNo = async (): Promise<string> => {
   const res = await saleApi.get("/sales/next-invoice-no");
   return res.data.invoice_no;
