@@ -30,6 +30,8 @@ import {
   Customer,
 } from "../../../services/customerApi";
 
+import { printReceipt, ReceiptData } from "../../../utils/printReceipt";
+
 import {
   createSale,
   deleteSale,
@@ -738,6 +740,7 @@ export default function POSScreen() {
           "Retail Price",
         SubTotal: totals.subTotal,
         DiscountAmount: totals.manualDiscountAmt,
+
         DiscountType: discountType,
         DiscountValue: parseFloat(discountValue) || 0,
         TaxAmount: totals.tax,
@@ -793,16 +796,71 @@ export default function POSScreen() {
       }
 
       setShowPayment(false);
-      Alert.alert(
-        status === "Completed" ? "Sale Complete" : "Saved",
-        `${result.InvoiceNo}\nChange: ${formatCurrency(result.ChangeAmount)}`,
-        [{ text: "OK", onPress: clearSale }],
-      );
+      const receipt: ReceiptData = {
+        companyName: session.CompanyName,
+        branchName: session.BranchName,
+        invoiceNo: result.InvoiceNo,
+        date: saleDate,
+        customerName,
+        cashierName:
+          cashiers.find((c) => c.id === cashierId)?.name ?? session.FullName,
+        priceType: PRICE_TYPE_OPTIONS.find((p) => p.id === priceTypeId)?.name,
+        items: cart.map((l) => ({
+          name: l.ProductName,
+          qty: l.Qty,
+          unitPrice: l.UnitPrice,
+          discountPercent: l.DiscountPercent,
+          total: lineTotal(l),
+        })),
+        subTotal: totals.subTotal,
+        discount: totals.lineDiscount + totals.manualDiscountAmt,
+        pointsDiscount: totals.redeemAmt,
+        tax: totals.tax,
+        grandTotal: totals.grand,
+        paymentMethod: isSplit
+          ? "Cash + Card"
+          : paymentMethod === "Cash"
+            ? "Cash"
+            : `${paymentMethod} - ${providerName}`,
+        received: paidNum,
+        change,
+      };
+
+      const message = `${result.InvoiceNo}\nChange: ${formatCurrency(result.ChangeAmount)}`;
+
+      if (status === "Completed") {
+        Alert.alert(
+          "Sale Complete",
+          message,
+          [
+            {
+              text: "Print Receipt",
+              onPress: async () => {
+                try {
+                  await printReceipt(receipt);
+                } catch (e) {
+                  console.log("Print cancelled or failed", e);
+                }
+                clearSale();
+              },
+            },
+            { text: "Done", style: "cancel", onPress: clearSale },
+          ],
+          { cancelable: false },
+        );
+      } else {
+        Alert.alert("Saved", message, [{ text: "OK", onPress: clearSale }]);
+      }
     } catch (err: any) {
-      console.error(err);
+      console.log("STATUS:", err?.response?.status);
+      console.log("SERVER SAYS:", JSON.stringify(err?.response?.data, null, 2));
       Alert.alert(
         "Error",
-        err?.response?.data?.detail || "Couldn't save sale.",
+        typeof err?.response?.data?.detail === "string"
+          ? err.response.data.detail
+          : JSON.stringify(
+              err?.response?.data?.detail ?? "Couldn't save sale.",
+            ),
       );
     } finally {
       setSaving(false);
@@ -1661,7 +1719,7 @@ export default function POSScreen() {
         visible={showProductPicker}
         transparent
         animationType="slide"
-        onShow={() => setTimeout(() => searchInputRef.current?.focus(), 150)}
+        //onShow={() => setTimeout(() => searchInputRef.current?.focus(), 150)}
       >
         <Pressable
           className="flex-1 bg-black/40 justify-end"
