@@ -4,7 +4,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  FlatList,
   ScrollView,
   ActivityIndicator,
   Alert,
@@ -18,7 +17,6 @@ import {
   Vibration,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
 import SideMenu from "../../../components/SideMenu";
 import {
   getProducts,
@@ -26,7 +24,11 @@ import {
   Product,
 } from "../../../services/productApi";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { getCustomers, Customer } from "../../../services/customerApi";
+import {
+  getCustomers,
+  createCustomer,
+  Customer,
+} from "../../../services/customerApi";
 
 import {
   createSale,
@@ -36,8 +38,7 @@ import {
   getNextInvoiceNo,
   getAllCashiers,
 } from "../../../services/saleApi";
-import loyalty from "../../../app/(tabs)/customers/loyalty";
-import { getStoredUser } from "../../../services/authApi";
+import { getStoredUser, getStoredPermissions } from "../../../services/authApi";
 import { useLocalSearchParams } from "expo-router";
 import Dropdown from "../../../components/Dropdown";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -45,6 +46,7 @@ import {
   adjustLoyaltyPoints,
   getLoyaltySummary,
 } from "../../../services/loyaltyApi";
+
 // Enable smooth add/remove/update animations on Android.
 if (
   Platform.OS === "android" &&
@@ -62,6 +64,9 @@ type CartLine = {
   TaxPercent: number;
   ManualPrice?: boolean;
 };
+
+// Must match the PermissionKey saved in the Permissions table
+const PRICE_CHANGE_KEY = "pos.pricechange_";
 
 const SPLIT = "Cash + Card";
 type SingleMethod = "Cash" | "Card" | "Mobile";
@@ -128,6 +133,7 @@ const DiscountTypeToggle = ({
     ))}
   </View>
 );
+
 const formatCurrency = (n: number) =>
   `৳ ${Number(n || 0).toLocaleString("en-BD", {
     minimumFractionDigits: 2,
@@ -153,6 +159,7 @@ export default function POSScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showPayment, setShowPayment] = useState(false);
 
   const [invoiceNo, setInvoiceNo] = useState("—");
   const [session, setSession] = useState<any>(null);
@@ -161,14 +168,25 @@ export default function POSScreen() {
   const [search, setSearch] = useState("");
   const [showProductPicker, setShowProductPicker] = useState(false);
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
+
+  // add customer state
+  const CUSTOMER_GROUPS = ["Retail", "Wholesale", "VIP"] as const;
+
+  const [showAddCustomer, setShowAddCustomer] = useState(false);
+  const [savingCustomer, setSavingCustomer] = useState(false);
+  const [newCust, setNewCust] = useState({
+    CustomerName: "",
+    Phone: "",
+    CustomerGroup: "Retail" as string,
+    AddressLine1: "",
+    City: "",
+  });
+
   const [customerId, setCustomerId] = useState<number | undefined>();
   const [customerPhone, setCustomerPhone] = useState("");
   const [loyaltyPointsMap, setLoyaltyPointsMap] = useState<
     Record<number, number>
   >({});
-  // const customerLoyaltyPoints = customerId
-  //   ? (loyaltyPointsMap[customerId] ?? 0)
-  //   : 0;
   const [customerName, setCustomerName] = useState("Walk-in Customer");
   const [showInfo, setShowInfo] = useState(false); // sale info + customer panel
   const [paymentMethod, setPaymentMethod] = useState("Cash");
@@ -192,7 +210,33 @@ export default function POSScreen() {
   ];
   const [priceTypeId, setPriceTypeId] = useState<number>(1);
 
+  // Only users with this permission can edit a line's price (this sale only,
+  // the product's price in the database is never changed).
+  const [canChangePrice, setCanChangePrice] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const perms = await getStoredPermissions();
+        setCanChangePrice(
+          Array.isArray(perms) && perms.includes(PRICE_CHANGE_KEY),
+        );
+      } catch {
+        setCanChangePrice(false);
+      }
+    })();
+  }, []);
+
   const searchInputRef = useRef<TextInput>(null);
+
+  // --- Payment popup ---
+  const inputsScrollRef = useRef<ScrollView>(null);
+  const scrollInputsToEnd = () =>
+    setTimeout(
+      () => inputsScrollRef.current?.scrollToEnd({ animated: true }),
+      250,
+    );
+
   // --- Barcode scanner ---
   const [showScanner, setShowScanner] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
@@ -205,17 +249,13 @@ export default function POSScreen() {
   const lastScan = useRef<{ code: string; at: number } | null>(null);
   const scanMsgTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [customerLoyaltyPoints, setCustomerLoyaltyPoints] = useState(0); // you may already have this
+  const [customerLoyaltyPoints, setCustomerLoyaltyPoints] = useState(0);
   const [pointsToRedeem, setPointsToRedeem] = useState("0");
 
   const [discountType, setDiscountType] = useState<"fixed" | "percent">(
     "fixed",
   );
   const [discountValue, setDiscountValue] = useState("");
-
-  const [loyaltyPointsInput, setLoyaltyPointsInput] = useState("");
-
-  const [loyaltyPointsUsed, setLoyaltyPointsUsed] = useState(0);
 
   const [providerId, setProviderId] = useState<number | undefined>(1); // Cash by hand
   const [splitCash, setSplitCash] = useState("");
@@ -227,20 +267,21 @@ export default function POSScreen() {
       if (scanMsgTimer.current) clearTimeout(scanMsgTimer.current);
     };
   }, []);
-  // --- Data loading (single source of truth — was previously duplicated
-  // in two separate effects, causing double network calls on mount) ---
+
+  // --- Data loading ---
   const loadData = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     try {
-      const [prod, cust, inv, user, cashierList, loyalty] = await Promise.all([
-        getProducts(),
-        getCustomers(),
-        getNextInvoiceNo(),
-        getStoredUser(),
-        getAllCashiers(),
-        getLoyaltySummary(),
-      ]);
+      const [prod, cust, inv, user, cashierList, loyaltySummary] =
+        await Promise.all([
+          getProducts(),
+          getCustomers(),
+          getNextInvoiceNo(),
+          getStoredUser(),
+          getAllCashiers(),
+          getLoyaltySummary(),
+        ]);
       setProducts(prod);
       setCustomers(cust);
       setInvoiceNo(inv);
@@ -248,7 +289,7 @@ export default function POSScreen() {
       setCashiers(cashierList);
       setLoyaltyPointsMap(
         Object.fromEntries(
-          loyalty.map((l) => [l.CustomerId, l.AvailablePoints]),
+          loyaltySummary.map((l) => [l.CustomerId, l.AvailablePoints]),
         ),
       );
       if (user && cashierId === undefined) setCashierId(user.UserID);
@@ -308,6 +349,59 @@ export default function POSScreen() {
       }),
     );
   };
+  const handleAddCustomer = async () => {
+    if (!newCust.CustomerName.trim()) {
+      Alert.alert("Missing field", "Customer name is required.");
+      return;
+    }
+    if (!newCust.Phone.trim()) {
+      Alert.alert("Missing field", "Phone is required.");
+      return;
+    }
+
+    try {
+      setSavingCustomer(true);
+      const created = await createCustomer({
+        CustomerName: newCust.CustomerName.trim(),
+        Phone: newCust.Phone.trim(),
+        CustomerGroup: newCust.CustomerGroup,
+        // the API requires these two, so use a placeholder if left empty
+        AddressLine1: newCust.AddressLine1.trim() || "N/A",
+        City: newCust.City.trim() || "N/A",
+        LoyaltyPoints: 0,
+        OpeningBalance: 0,
+        CreditLimit: 0,
+        Status: "Active",
+      });
+
+      // add to the list and select for this sale
+      setCustomers((prev) => [...prev, created]);
+      setCustomerId(created.CustomerId);
+      setCustomerName(created.CustomerName);
+      setCustomerPhone(created.Phone ?? "—");
+      setCustomerLoyaltyPoints(0);
+
+      setNewCust({
+        CustomerName: "",
+        Phone: "",
+        CustomerGroup: "Retail",
+        AddressLine1: "",
+        City: "",
+      });
+      setShowAddCustomer(false);
+      setShowCustomerPicker(false);
+    } catch (err: any) {
+      Alert.alert(
+        "Error",
+        err?.response?.data?.detail
+          ? String(err.response.data.detail)
+          : "Could not save the customer.",
+      );
+    } finally {
+      setSavingCustomer(false);
+    }
+  };
+
   const addProduct = (p: Product) => {
     animateNext();
     setCart((prev) => {
@@ -494,8 +588,23 @@ export default function POSScreen() {
 
     const redeemAmt = parseFloat(pointsToRedeem) || 0;
 
-    const grand = Math.max(0, base - manualDiscountAmt - redeemAmt + tax);
-    return { subTotal, lineDiscount, tax, manualDiscountAmt, redeemAmt, grand };
+    const rawGrand =
+      Math.round(
+        Math.max(0, base - manualDiscountAmt - redeemAmt + tax) * 100,
+      ) / 100;
+    // Whole-taka total: the fraction is rounded off (floor), e.g. 1150.56 -> 1150
+    const grand = Math.floor(rawGrand);
+    const roundOff = Math.round((rawGrand - grand) * 100) / 100;
+    return {
+      subTotal,
+      lineDiscount,
+      tax,
+      manualDiscountAmt,
+      redeemAmt,
+      grand,
+      rawGrand,
+      roundOff,
+    };
   }, [cart, discountType, discountValue, pointsToRedeem]);
 
   const isSplit = paymentMethod === SPLIT;
@@ -525,7 +634,6 @@ export default function POSScreen() {
         (o) => o.id === providerId,
       )?.name
     : undefined;
-  const splitBankName = BANKS.find((b) => b.id === splitBankId)?.name;
 
   const selectMethod = (m: string) => {
     setPaymentMethod(m);
@@ -535,11 +643,12 @@ export default function POSScreen() {
   // Handy quick-cash buttons: exact amount, then round-up denominations.
   const quickAmounts = useMemo(() => {
     if (totals.grand <= 0) return [];
-    const exact = Math.round(totals.grand * 100) / 100;
+    const floored = Math.floor(totals.grand);
+    const ceiled = Math.ceil(totals.grand);
     const roundUps = [50, 100, 500, 1000]
-      .map((denom) => Math.ceil(exact / denom) * denom)
-      .filter((v) => v > exact);
-    return Array.from(new Set([exact, ...roundUps])).slice(0, 4);
+      .map((denom) => Math.ceil(totals.grand / denom) * denom)
+      .filter((v) => v > ceiled);
+    return Array.from(new Set([floored, ceiled, ...roundUps])).slice(0, 4);
   }, [totals.grand]);
 
   const handlePay = async (status: "Completed" | "Held" | "Draft") => {
@@ -683,6 +792,7 @@ export default function POSScreen() {
         sourceDraftId.current = null;
       }
 
+      setShowPayment(false);
       Alert.alert(
         status === "Completed" ? "Sale Complete" : "Saved",
         `${result.InvoiceNo}\nChange: ${formatCurrency(result.ChangeAmount)}`,
@@ -740,7 +850,7 @@ export default function POSScreen() {
   }
 
   return (
-    <View className="flex-1 bg-gray-50">
+    <KeyboardAvoidingView className="flex-1 bg-gray-50" behavior="padding">
       {/* Header */}
       <View className="flex-row items-center justify-between px-4 pt-14 pb-3 bg-white border-b border-gray-200">
         <View className="flex-row items-center">
@@ -809,10 +919,7 @@ export default function POSScreen() {
         {/* Sale info + customer: one line, tap to open */}
         <View className="bg-white border border-gray-200 rounded-xl m-3 mb-0 overflow-hidden">
           <TouchableOpacity
-            onPress={() => {
-              animateNext();
-              setShowInfo((v) => !v);
-            }}
+            onPress={() => setShowInfo(true)}
             activeOpacity={0.7}
             className="flex-row items-center justify-between px-3 py-3"
           >
@@ -832,109 +939,38 @@ export default function POSScreen() {
                 )}
               </Text>
             </View>
-            <Ionicons
-              name={showInfo ? "chevron-up" : "chevron-down"}
-              size={16}
-              color="#9CA3AF"
-            />
+            <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
           </TouchableOpacity>
-
-          {showInfo && (
-            <View className="px-3 pb-3 border-t border-gray-100">
-              {/* Sale info */}
-              <Text className="text-xs font-semibold text-gray-500 mt-3 mb-2">
-                SALE INFO
-              </Text>
-
-              <View className="flex-row justify-between mb-3">
-                <Text className="text-xs text-gray-500">Invoice No</Text>
-                <Text className="text-xs text-gray-800 font-medium">
-                  {invoiceNo}
-                </Text>
-              </View>
-
-              <View className="mb-3">
-                <Text className="text-xs text-gray-500 mb-1.5">Date</Text>
-                <TouchableOpacity
-                  onPress={() => setShowDatePicker(true)}
-                  className="flex-row items-center justify-between border border-gray-200 rounded-lg px-3 py-2"
-                >
-                  <Text className="text-xs text-gray-800">
-                    {saleDate.toLocaleString()}
-                  </Text>
-                  <Ionicons name="calendar-outline" size={14} color="#9CA3AF" />
-                </TouchableOpacity>
-                {showDatePicker && (
-                  <DateTimePicker
-                    value={saleDate}
-                    mode="date"
-                    onChange={(e, d) => {
-                      setShowDatePicker(false);
-                      if (e.type === "set" && d) setSaleDate(d);
-                    }}
-                  />
-                )}
-              </View>
-
-              <View className="mb-3">
-                <Dropdown
-                  label="Cashier"
-                  placeholder="Select cashier"
-                  options={cashiers}
-                  selectedId={cashierId}
-                  onSelect={setCashierId}
-                />
-              </View>
-
-              <Dropdown
-                label="Price Type"
-                placeholder="Select price type"
-                options={PRICE_TYPE_OPTIONS}
-                selectedId={priceTypeId}
-                onSelect={changePriceType}
-              />
-
-              {/* Customer */}
-              <View className="border-t border-gray-100 pt-3">
-                <View className="flex-row items-center justify-between mb-2">
-                  <Text className="text-xs font-semibold text-gray-500">
-                    CUSTOMER
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => setShowCustomerPicker(true)}
-                    className="flex-row items-center"
-                  >
-                    <Ionicons
-                      name="swap-horizontal-outline"
-                      size={14}
-                      color="#3B82F6"
-                    />
-                    <Text className="text-xs text-blue-600 ml-1">Change</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <Text className="text-sm font-medium text-gray-900 mb-1">
-                  {customerName}
-                </Text>
-                {customerId && (
-                  <>
-                    <Text className="text-xs text-gray-500">
-                      Phone: {customerPhone || "—"}
-                    </Text>
-                    <Text className="text-xs text-gray-500">
-                      Loyalty Points: {customerLoyaltyPoints}
-                    </Text>
-                  </>
-                )}
-              </View>
-            </View>
-          )}
         </View>
 
-        {/* Search / Scan */}
-        <View className="px-4 pt-3 pb-2 bg-white"></View>
+        {/* Price type: always visible */}
+        <View className="px-4 pt-3 bg-white mt-3">
+          <View className="flex-row bg-gray-100 rounded-xl p-1">
+            {PRICE_TYPE_OPTIONS.map((opt) => {
+              const active = priceTypeId === opt.id;
+              return (
+                <TouchableOpacity
+                  key={opt.id}
+                  onPress={() => changePriceType(opt.id)}
+                  activeOpacity={0.8}
+                  className={`flex-1 py-2 rounded-lg items-center ${
+                    active ? "bg-blue-600" : ""
+                  }`}
+                >
+                  <Text
+                    className={`text-sm font-medium ${
+                      active ? "text-white" : "text-gray-600"
+                    }`}
+                  >
+                    {opt.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
 
-        {/* Customer + Scan */}
+        {/* Search + Scan */}
         <View className="px-4 pt-3 pb-2 bg-white">
           <View className="flex-row">
             <TouchableOpacity
@@ -1042,19 +1078,38 @@ export default function POSScreen() {
 
                 <View className="flex-row mt-2 pt-2 border-t border-gray-100">
                   <View className="flex-1 mr-2">
-                    <Text className="text-xs text-gray-400 mb-1">Price</Text>
-                    <TextInput
-                      value={String(item.UnitPrice)}
-                      onChangeText={(v) =>
-                        updateLine(
-                          item.ProductID,
-                          "UnitPrice",
-                          parseFloat(v) || 0,
-                        )
-                      }
-                      keyboardType="numeric"
-                      className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs text-gray-800"
-                    />
+                    <View className="flex-row items-center mb-1">
+                      <Text className="text-xs text-gray-400">Price</Text>
+                      {canChangePrice && (
+                        <Ionicons
+                          name="create-outline"
+                          size={12}
+                          color="#3B82F6"
+                          style={{ marginLeft: 4 }}
+                        />
+                      )}
+                    </View>
+                    {canChangePrice ? (
+                      <TextInput
+                        value={String(item.UnitPrice)}
+                        onChangeText={(v) =>
+                          updateLine(
+                            item.ProductID,
+                            "UnitPrice",
+                            parseFloat(v) || 0,
+                          )
+                        }
+                        keyboardType="numeric"
+                        selectTextOnFocus
+                        className="border border-blue-300 rounded-lg px-2 py-1.5 text-xs text-gray-800"
+                      />
+                    ) : (
+                      <View className="border border-gray-200 bg-gray-50 rounded-lg px-2 py-1.5">
+                        <Text className="text-xs text-gray-700">
+                          {item.UnitPrice}
+                        </Text>
+                      </View>
+                    )}
                   </View>
                   <View className="flex-1 mr-2">
                     <Text className="text-xs text-gray-400 mb-1">Disc %</Text>
@@ -1093,281 +1148,513 @@ export default function POSScreen() {
         </View>
       </ScrollView>
 
-      {/* Sticky bottom bar */}
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={0}
+      {/* Sticky bottom bar: just totals + pay */}
+      <View
+        className="bg-white border-t border-gray-200 px-4 pt-3 pb-6"
+        style={{
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.05,
+          shadowRadius: 6,
+          elevation: 4,
+        }}
       >
-        <View
-          className="bg-white border-t border-gray-200 px-4 pt-3 pb-6"
-          style={{
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: -2 },
-            shadowOpacity: 0.05,
-            shadowRadius: 6,
-            elevation: 4,
-          }}
-        >
-          <View className="flex-row justify-between mb-1">
-            <Text className="text-xs text-gray-500">Items {totalItems}</Text>
-            <Text className="text-xs text-gray-500">
-              Sub {formatCurrency(totals.subTotal)}
-            </Text>
-            <Text className="text-xs text-gray-500">
-              Disc {formatCurrency(totals.manualDiscountAmt)}
-            </Text>
-            <Text className="text-xs text-gray-500">
-              Tax {formatCurrency(totals.tax)}
-            </Text>
-          </View>
+        <View className="flex-row justify-between mb-1">
+          <Text className="text-xs text-gray-500">Items {totalItems}</Text>
+          <Text className="text-xs text-gray-500">
+            Sub {formatCurrency(totals.subTotal)}
+          </Text>
+          <Text className="text-xs text-gray-500">
+            Disc {formatCurrency(totals.manualDiscountAmt)}
+          </Text>
+          <Text className="text-xs text-gray-500">
+            Tax {formatCurrency(totals.tax)}
+          </Text>
+        </View>
 
-          <View className="flex-row justify-between items-center bg-blue-600 rounded-xl px-4 py-2.5 mb-3">
+        <View className="bg-blue-600 rounded-xl px-4 py-2.5 mb-3">
+          <View className="flex-row justify-between items-center">
             <Text className="text-white text-sm font-medium">Grand Total</Text>
             <Text className="text-white text-lg font-bold">
-              {formatCurrency(totals.grand)}
+              {formatCurrency(totals.rawGrand)}
             </Text>
           </View>
-
-          {customerId && customerLoyaltyPoints > 0 && (
-            <View className="mb-3">
-              <Text className="text-xs text-gray-500 mb-1">
-                Redeem Points (Available: {customerLoyaltyPoints})
-              </Text>
-              <View className="flex-row items-center border border-gray-200 rounded-lg px-3 bg-white">
-                <TextInput
-                  value={pointsToRedeem}
-                  onChangeText={(v) => {
-                    const num = parseInt(v, 10) || 0;
-                    setPointsToRedeem(
-                      String(Math.max(0, Math.min(num, customerLoyaltyPoints))),
-                    );
-                  }}
-                  keyboardType="numeric"
-                  className="flex-1 py-2 text-sm text-gray-800"
-                />
-                <Text className="text-xs text-gray-400">
-                  = ৳ {pointsToRedeem}
-                </Text>
-              </View>
-            </View>
+          {totals.roundOff > 0 && (
+            <Text className="text-blue-100 text-xs text-right">
+              Rounded: {formatCurrency(totals.grand)}
+            </Text>
           )}
+        </View>
 
-          <View className="mb-3">
-            <View className="flex-row items-center justify-between mb-1">
-              <Text className="text-xs text-gray-500">
-                Discount ({discountType === "percent" ? "%" : "৳"})
-              </Text>
-              <DiscountTypeToggle
-                value={discountType}
-                onChange={setDiscountType}
-              />
-            </View>
-            <TextInput
-              value={discountValue}
-              onChangeText={setDiscountValue}
-              keyboardType="numeric"
-              placeholder="0"
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white"
-            />
-          </View>
+        <View className="flex-row">
+          <TouchableOpacity
+            onPress={confirmClear}
+            disabled={cart.length === 0}
+            className={`flex-1 mr-2 border rounded-xl py-3 items-center ${
+              cart.length === 0 ? "border-gray-200" : "border-gray-300"
+            }`}
+          >
+            <Text
+              className={`font-medium ${
+                cart.length === 0 ? "text-gray-300" : "text-gray-600"
+              }`}
+            >
+              Clear
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setShowPayment(true)}
+            disabled={cart.length === 0}
+            className={`flex-[2] rounded-xl py-3 items-center flex-row justify-center ${
+              cart.length === 0 ? "bg-green-300" : "bg-green-600"
+            }`}
+          >
+            <Ionicons name="card-outline" size={16} color="#fff" />
+            <Text className="text-white font-semibold ml-2">Pay</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
 
-          {/* Payment methods */}
-          <View className="flex-row mb-3">
-            {PAYMENT_METHODS.map((m) => (
-              <TouchableOpacity
-                key={m.label}
-                onPress={() => selectMethod(m.label)}
-                className={`flex-1 mr-2 rounded-lg py-2 items-center justify-center ${
-                  paymentMethod === m.label ? "bg-blue-600" : "bg-gray-100"
-                }`}
-              >
-                <Ionicons
-                  name={m.icon}
-                  size={14}
-                  color={paymentMethod === m.label ? "#fff" : "#4B5563"}
-                />
-                <Text
-                  numberOfLines={1}
-                  className={`text-[10px] font-medium mt-0.5 ${
-                    paymentMethod === m.label ? "text-white" : "text-gray-600"
-                  }`}
-                >
-                  {m.label}
+      {/* Payment popup */}
+      <Modal
+        visible={showPayment}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowPayment(false)}
+      >
+        <KeyboardAvoidingView behavior="padding" className="flex-1">
+          <Pressable
+            className="flex-1 bg-black/40 justify-end"
+            onPress={() => setShowPayment(false)}
+          >
+            <Pressable
+              className="bg-white rounded-t-2xl px-5 pt-5 pb-6 max-h-[92%]"
+              onPress={(e) => e.stopPropagation()}
+            >
+              <View className="flex-row items-center justify-between mb-3">
+                <Text className="text-lg font-semibold text-gray-900">
+                  Payment
                 </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Single method: provider dropdown */}
-          {!isSplit && (
-            <View className="mb-3">
-              <Dropdown
-                label={PAYMENT_PROVIDERS[paymentMethod as SingleMethod].label}
-                placeholder={
-                  paymentMethod === "Card" ? "Select bank" : "Select option"
-                }
-                options={
-                  PAYMENT_PROVIDERS[paymentMethod as SingleMethod].options
-                }
-                selectedId={providerId}
-                onSelect={setProviderId}
-              />
-            </View>
-          )}
-
-          {/* Split: cash + card */}
-          {isSplit && (
-            <View className="border border-gray-200 rounded-xl p-3 mb-3">
-              <Text className="text-xs text-gray-500 mb-1">
-                Cash by hand (৳)
-              </Text>
-              <TextInput
-                value={splitCash}
-                onChangeText={setSplitCash}
-                keyboardType="numeric"
-                placeholder="0"
-                className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white mb-3"
-              />
-
-              <Dropdown
-                label="Card Bank"
-                placeholder="Select bank"
-                options={BANKS}
-                selectedId={splitBankId}
-                onSelect={setSplitBankId}
-              />
-
-              <View className="flex-row items-center justify-between mt-3 mb-1">
-                <Text className="text-xs text-gray-500">Card amount (৳)</Text>
-                <TouchableOpacity
-                  onPress={() =>
-                    setSplitCard(
-                      String(Math.max(0, totals.grand - splitCashNum)),
-                    )
-                  }
-                >
-                  <Text className="text-xs text-blue-600">Fill remaining</Text>
+                <TouchableOpacity onPress={() => setShowPayment(false)}>
+                  <Ionicons name="close" size={22} color="#6B7280" />
                 </TouchableOpacity>
               </View>
-              <TextInput
-                value={splitCard}
-                onChangeText={setSplitCard}
-                keyboardType="numeric"
-                placeholder="0"
-                className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white"
-              />
 
-              <View className="flex-row justify-between mt-3 pt-2 border-t border-gray-100">
-                <Text className="text-xs text-gray-500">
-                  Paid {formatCurrency(paidNum)}
-                </Text>
-                <Text
-                  className={`text-xs font-semibold ${
-                    isShort ? "text-red-600" : "text-green-600"
-                  }`}
-                >
-                  {isShort
-                    ? `Short ${formatCurrency(totals.grand - paidNum)}`
-                    : `Change ${formatCurrency(change)}`}
-                </Text>
-              </View>
-            </View>
-          )}
-
-          {/* Cash: received + change */}
-          {paymentMethod === "Cash" && (
-            <View className="flex-row items-center mb-2">
-              <View className="flex-1 mr-2">
-                <Text className="text-xs text-gray-400 mb-1">Received</Text>
-                <TextInput
-                  value={received}
-                  onChangeText={setReceived}
-                  keyboardType="numeric"
-                  className={`border rounded-lg px-2 py-2 text-sm text-gray-800 ${
-                    isShort ? "border-red-300 bg-red-50" : "border-gray-200"
-                  }`}
-                />
-              </View>
-              <View className="flex-1">
-                <Text className="text-xs text-gray-400 mb-1">
-                  {isShort ? "Short by" : "Change"}
-                </Text>
-                <View
-                  className={`border rounded-lg px-2 py-2 ${
-                    isShort
-                      ? "border-red-200 bg-red-50"
-                      : "border-gray-200 bg-gray-50"
-                  }`}
-                >
-                  <Text
-                    className={`text-sm font-semibold ${
-                      isShort ? "text-red-600" : "text-green-600"
-                    }`}
-                  >
-                    {isShort
-                      ? formatCurrency(totals.grand - paidNum)
-                      : formatCurrency(change)}
+              <View className="bg-blue-600 rounded-xl px-4 py-2.5 mb-3">
+                <View className="flex-row justify-between items-center">
+                  <Text className="text-white text-sm font-medium">
+                    Grand Total
+                  </Text>
+                  <Text className="text-white text-lg font-bold">
+                    {formatCurrency(totals.rawGrand)}
                   </Text>
                 </View>
+                {totals.roundOff > 0 && (
+                  <Text className="text-blue-100 text-xs text-right">
+                    Rounded: {formatCurrency(totals.grand)}
+                  </Text>
+                )}
               </View>
-            </View>
-          )}
 
-          {/* Quick cash amounts */}
-          {paymentMethod === "Cash" && quickAmounts.length > 0 && (
-            <View className="flex-row mb-3">
-              {quickAmounts.map((amt) => (
-                <TouchableOpacity
-                  key={amt}
-                  onPress={() => setReceived(String(amt))}
-                  className="border border-gray-200 rounded-lg px-2.5 py-1.5 mr-2"
-                >
-                  <Text className="text-xs text-gray-600">
-                    {formatCurrency(amt)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-
-          <View className="flex-row">
-            <TouchableOpacity
-              onPress={confirmClear}
-              disabled={cart.length === 0}
-              className={`flex-1 mr-2 border rounded-xl py-3 items-center ${
-                cart.length === 0 ? "border-gray-200" : "border-gray-300"
-              }`}
-            >
-              <Text
-                className={`font-medium ${
-                  cart.length === 0 ? "text-gray-300" : "text-gray-600"
-                }`}
+              <ScrollView
+                ref={inputsScrollRef}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
               >
-                Clear
+                {customerId && customerLoyaltyPoints > 0 && (
+                  <View className="mb-3">
+                    <Text className="text-xs text-gray-500 mb-1">
+                      Redeem Points (Available: {customerLoyaltyPoints})
+                    </Text>
+                    <View className="flex-row items-center border border-gray-200 rounded-lg px-3 bg-white">
+                      <TextInput
+                        value={pointsToRedeem}
+                        onChangeText={(v) => {
+                          const num = parseInt(v, 10) || 0;
+                          setPointsToRedeem(
+                            String(
+                              Math.max(0, Math.min(num, customerLoyaltyPoints)),
+                            ),
+                          );
+                        }}
+                        keyboardType="numeric"
+                        className="flex-1 py-2 text-sm text-gray-800"
+                      />
+                      <Text className="text-xs text-gray-400">
+                        = ৳ {pointsToRedeem}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                <View className="mb-3">
+                  <View className="flex-row items-center justify-between mb-1">
+                    <Text className="text-xs text-gray-500">
+                      Discount ({discountType === "percent" ? "%" : "৳"})
+                    </Text>
+                    <DiscountTypeToggle
+                      value={discountType}
+                      onChange={setDiscountType}
+                    />
+                  </View>
+                  <TextInput
+                    value={discountValue}
+                    onChangeText={setDiscountValue}
+                    keyboardType="numeric"
+                    placeholder="0"
+                    className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white"
+                  />
+                </View>
+
+                {/* Payment methods */}
+                <View className="flex-row mb-3">
+                  {PAYMENT_METHODS.map((m) => (
+                    <TouchableOpacity
+                      key={m.label}
+                      onPress={() => selectMethod(m.label)}
+                      className={`flex-1 mr-2 rounded-lg py-2 items-center justify-center ${
+                        paymentMethod === m.label
+                          ? "bg-blue-600"
+                          : "bg-gray-100"
+                      }`}
+                    >
+                      <Ionicons
+                        name={m.icon}
+                        size={14}
+                        color={paymentMethod === m.label ? "#fff" : "#4B5563"}
+                      />
+                      <Text
+                        numberOfLines={1}
+                        className={`text-[10px] font-medium mt-0.5 ${
+                          paymentMethod === m.label
+                            ? "text-white"
+                            : "text-gray-600"
+                        }`}
+                      >
+                        {m.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* Single method: provider dropdown */}
+                {!isSplit && (
+                  <View className="mb-3">
+                    <Dropdown
+                      label={
+                        PAYMENT_PROVIDERS[paymentMethod as SingleMethod].label
+                      }
+                      placeholder={
+                        paymentMethod === "Card"
+                          ? "Select bank"
+                          : "Select option"
+                      }
+                      options={
+                        PAYMENT_PROVIDERS[paymentMethod as SingleMethod].options
+                      }
+                      selectedId={providerId}
+                      onSelect={setProviderId}
+                    />
+                  </View>
+                )}
+
+                {/* Split: cash + card */}
+                {isSplit && (
+                  <View className="border border-gray-200 rounded-xl p-3 mb-3">
+                    <Text className="text-xs text-gray-500 mb-1">
+                      Cash by hand (৳)
+                    </Text>
+                    <TextInput
+                      value={splitCash}
+                      onChangeText={setSplitCash}
+                      keyboardType="numeric"
+                      placeholder="0"
+                      className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white mb-3"
+                    />
+
+                    <Dropdown
+                      label="Card Bank"
+                      placeholder="Select bank"
+                      options={BANKS}
+                      selectedId={splitBankId}
+                      onSelect={setSplitBankId}
+                    />
+
+                    <View className="flex-row items-center justify-between mt-3 mb-1">
+                      <Text className="text-xs text-gray-500">
+                        Card amount (৳)
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() =>
+                          setSplitCard(
+                            String(Math.max(0, totals.grand - splitCashNum)),
+                          )
+                        }
+                      >
+                        <Text className="text-xs text-blue-600">
+                          Fill remaining
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                    <TextInput
+                      value={splitCard}
+                      onChangeText={setSplitCard}
+                      keyboardType="numeric"
+                      placeholder="0"
+                      className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white"
+                    />
+
+                    <View className="flex-row justify-between mt-3 pt-2 border-t border-gray-100">
+                      <Text className="text-xs text-gray-500">
+                        Paid {formatCurrency(paidNum)}
+                      </Text>
+                      <Text
+                        className={`text-xs font-semibold ${
+                          isShort ? "text-red-600" : "text-green-600"
+                        }`}
+                      >
+                        {isShort
+                          ? `Short ${formatCurrency(totals.grand - paidNum)}`
+                          : `Change ${formatCurrency(change)}`}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* Cash: received + change */}
+                {paymentMethod === "Cash" && (
+                  <View className="flex-row items-center mb-2">
+                    <View className="flex-1 mr-2">
+                      <Text className="text-xs text-gray-400 mb-1">
+                        Received
+                      </Text>
+                      <TextInput
+                        value={received}
+                        onChangeText={setReceived}
+                        onFocus={scrollInputsToEnd}
+                        selectTextOnFocus
+                        keyboardType="numeric"
+                        className={`border rounded-lg px-2 py-2 text-sm text-gray-800 ${
+                          isShort
+                            ? "border-red-300 bg-red-50"
+                            : "border-gray-200"
+                        }`}
+                      />
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-xs text-gray-400 mb-1">
+                        {isShort ? "Short by" : "Change"}
+                      </Text>
+                      <View
+                        className={`border rounded-lg px-2 py-2 ${
+                          isShort
+                            ? "border-red-200 bg-red-50"
+                            : "border-gray-200 bg-gray-50"
+                        }`}
+                      >
+                        <Text
+                          className={`text-sm font-semibold ${
+                            isShort ? "text-red-600" : "text-green-600"
+                          }`}
+                        >
+                          {isShort
+                            ? formatCurrency(totals.grand - paidNum)
+                            : formatCurrency(change)}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+
+                {/* Quick cash amounts */}
+                {paymentMethod === "Cash" && quickAmounts.length > 0 && (
+                  <View className="flex-row mb-3">
+                    {quickAmounts.map((amt) => (
+                      <TouchableOpacity
+                        key={amt}
+                        onPress={() => setReceived(String(amt))}
+                        className="border border-gray-200 rounded-lg px-2.5 py-1.5 mr-2"
+                      >
+                        <Text className="text-xs text-gray-600">
+                          ৳ {amt.toLocaleString("en-BD")}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </ScrollView>
+
+              <View className="flex-row mt-3">
+                <TouchableOpacity
+                  onPress={() => setShowPayment(false)}
+                  className="flex-1 mr-2 border border-gray-300 rounded-xl py-3 items-center"
+                >
+                  <Text className="font-medium text-gray-600">Back</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => handlePay("Completed")}
+                  disabled={saving || cart.length === 0}
+                  className={`flex-[2] rounded-xl py-3 items-center flex-row justify-center ${
+                    cart.length === 0 ? "bg-green-300" : "bg-green-600"
+                  }`}
+                >
+                  {saving ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons
+                        name="checkmark-circle-outline"
+                        size={16}
+                        color="#fff"
+                      />
+                      <Text className="text-white font-semibold ml-2">
+                        Confirm {formatCurrency(totals.grand)}
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Sale info popup */}
+      <Modal
+        visible={showInfo}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowInfo(false)}
+      >
+        <Pressable
+          className="flex-1 bg-black/40 justify-end"
+          onPress={() => setShowInfo(false)}
+        >
+          <Pressable
+            className="bg-white rounded-t-2xl px-5 pt-5 pb-6 max-h-[85%]"
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View className="flex-row items-center justify-between mb-1">
+              <Text className="text-lg font-semibold text-gray-900">
+                Sale Info
               </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => handlePay("Completed")}
-              disabled={saving || cart.length === 0}
-              className={`flex-[2] rounded-xl py-3 items-center flex-row justify-center ${
-                cart.length === 0 ? "bg-green-300" : "bg-green-600"
-              }`}
-            >
-              {saving ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <>
-                  <Ionicons name="card-outline" size={16} color="#fff" />
-                  <Text className="text-white font-semibold ml-2">
-                    Pay {formatCurrency(totals.grand)}
+              <TouchableOpacity onPress={() => setShowInfo(false)}>
+                <Ionicons name="close" size={22} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView keyboardShouldPersistTaps="handled">
+              <View className="pb-2">
+                {/* Sale info */}
+                <Text className="text-xs font-semibold text-gray-500 mt-3 mb-2">
+                  SALE INFO
+                </Text>
+
+                <View className="flex-row justify-between mb-3">
+                  <Text className="text-xs text-gray-500">Invoice No</Text>
+                  <Text className="text-xs text-gray-800 font-medium">
+                    {invoiceNo}
                   </Text>
-                </>
-              )}
+                </View>
+
+                <View className="mb-3">
+                  <Text className="text-xs text-gray-500 mb-1.5">Date</Text>
+                  <TouchableOpacity
+                    onPress={() => setShowDatePicker(true)}
+                    className="flex-row items-center justify-between border border-gray-200 rounded-lg px-3 py-2"
+                  >
+                    <Text className="text-xs text-gray-800">
+                      {saleDate.toLocaleString()}
+                    </Text>
+                    <Ionicons
+                      name="calendar-outline"
+                      size={14}
+                      color="#9CA3AF"
+                    />
+                  </TouchableOpacity>
+                  {showDatePicker && (
+                    <DateTimePicker
+                      value={saleDate}
+                      mode="date"
+                      onChange={(e, d) => {
+                        setShowDatePicker(false);
+                        if (e.type === "set" && d) setSaleDate(d);
+                      }}
+                    />
+                  )}
+                </View>
+
+                <View className="mb-3">
+                  <Dropdown
+                    label="Cashier"
+                    placeholder="Select cashier"
+                    options={cashiers}
+                    selectedId={cashierId}
+                    onSelect={setCashierId}
+                  />
+                </View>
+
+                {/* Customer */}
+                <View className="border-t border-gray-100 pt-3">
+                  <View className="flex-row items-center justify-between mb-2">
+                    <Text className="text-xs font-semibold text-gray-500">
+                      CUSTOMER
+                    </Text>
+                    <View className="flex-row items-center">
+                      <TouchableOpacity
+                        onPress={() => setShowAddCustomer(true)}
+                        className="flex-row items-center mr-4"
+                      >
+                        <Ionicons
+                          name="person-add-outline"
+                          size={14}
+                          color="#16A34A"
+                        />
+                        <Text className="text-xs text-green-600 ml-1">New</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        onPress={() => setShowCustomerPicker(true)}
+                        className="flex-row items-center"
+                      >
+                        <Ionicons
+                          name="swap-horizontal-outline"
+                          size={14}
+                          color="#3B82F6"
+                        />
+                        <Text className="text-xs text-blue-600 ml-1">
+                          Change
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <Text className="text-sm font-medium text-gray-900 mb-1">
+                    {customerName}
+                  </Text>
+                  {customerId && (
+                    <>
+                      <Text className="text-xs text-gray-500">
+                        Phone: {customerPhone || "—"}
+                      </Text>
+                      <Text className="text-xs text-gray-500">
+                        Loyalty Points: {customerLoyaltyPoints}
+                      </Text>
+                    </>
+                  )}
+                </View>
+              </View>
+            </ScrollView>
+
+            <TouchableOpacity
+              onPress={() => setShowInfo(false)}
+              className="bg-blue-600 rounded-xl py-3 items-center mt-3"
+            >
+              <Text className="text-white font-semibold">Done</Text>
             </TouchableOpacity>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Product picker */}
       <Modal
@@ -1482,7 +1769,8 @@ export default function POSScreen() {
                   setCustomerId(undefined);
                   setCustomerName("Walk-in Customer");
                   setCustomerPhone("");
-
+                  setCustomerLoyaltyPoints(0);
+                  setPointsToRedeem("0");
                   setShowCustomerPicker(false);
                 }}
                 className={`border rounded-xl px-3 py-3 mb-2 ${
@@ -1501,6 +1789,7 @@ export default function POSScreen() {
                     setCustomerId(c.CustomerId);
                     setCustomerName(c.CustomerName);
                     setCustomerPhone(c.Phone ?? "—");
+                    setPointsToRedeem("0");
                     try {
                       const summary = await getLoyaltySummary();
                       const match = summary.find(
@@ -1528,6 +1817,124 @@ export default function POSScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Quick add customer */}
+      <Modal visible={showAddCustomer} transparent animationType="fade">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          className="flex-1"
+        >
+          <Pressable
+            className="flex-1 bg-black/40 justify-center px-5"
+            onPress={() => !savingCustomer && setShowAddCustomer(false)}
+          >
+            <Pressable
+              className="bg-white rounded-2xl p-5"
+              onPress={(e) => e.stopPropagation()}
+            >
+              <View className="flex-row items-center justify-between mb-4">
+                <Text className="text-lg font-semibold text-gray-900">
+                  New Customer
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setShowAddCustomer(false)}
+                  disabled={savingCustomer}
+                >
+                  <Ionicons name="close" size={22} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView keyboardShouldPersistTaps="handled">
+                <Text className="text-xs text-gray-500 mb-1">Name *</Text>
+                <TextInput
+                  value={newCust.CustomerName}
+                  onChangeText={(v) =>
+                    setNewCust((p) => ({ ...p, CustomerName: v }))
+                  }
+                  placeholder="Customer name"
+                  className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 mb-3"
+                />
+
+                <Text className="text-xs text-gray-500 mb-1">Phone *</Text>
+                <TextInput
+                  value={newCust.Phone}
+                  onChangeText={(v) => setNewCust((p) => ({ ...p, Phone: v }))}
+                  placeholder="01XXXXXXXXX"
+                  keyboardType="phone-pad"
+                  className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 mb-3"
+                />
+
+                <Text className="text-xs text-gray-500 mb-1">Group</Text>
+                <View className="flex-row mb-3">
+                  {CUSTOMER_GROUPS.map((g) => {
+                    const active = newCust.CustomerGroup === g;
+                    return (
+                      <TouchableOpacity
+                        key={g}
+                        onPress={() =>
+                          setNewCust((p) => ({ ...p, CustomerGroup: g }))
+                        }
+                        className={`px-3 py-1.5 rounded-full mr-2 border ${
+                          active
+                            ? "bg-blue-600 border-blue-600"
+                            : "border-gray-300"
+                        }`}
+                      >
+                        <Text
+                          className={`text-xs font-medium ${
+                            active ? "text-white" : "text-gray-600"
+                          }`}
+                        >
+                          {g}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <Text className="text-xs text-gray-500 mb-1">
+                  Address (optional)
+                </Text>
+                <TextInput
+                  value={newCust.AddressLine1}
+                  onChangeText={(v) =>
+                    setNewCust((p) => ({ ...p, AddressLine1: v }))
+                  }
+                  placeholder="Address"
+                  className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 mb-3"
+                />
+
+                <Text className="text-xs text-gray-500 mb-1">
+                  City (optional)
+                </Text>
+                <TextInput
+                  value={newCust.City}
+                  onChangeText={(v) => setNewCust((p) => ({ ...p, City: v }))}
+                  placeholder="City"
+                  className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 mb-4"
+                />
+              </ScrollView>
+
+              <TouchableOpacity
+                onPress={handleAddCustomer}
+                disabled={savingCustomer}
+                className={`rounded-xl py-3 items-center ${
+                  savingCustomer ? "bg-blue-300" : "bg-blue-600"
+                }`}
+              >
+                {savingCustomer ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text className="text-white font-semibold">
+                    Save & Select
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </Modal>
+
       {/* Barcode scanner */}
       <Modal
         visible={showScanner}
@@ -1613,6 +2020,6 @@ export default function POSScreen() {
       </Modal>
 
       <SideMenu visible={menuVisible} onClose={() => setMenuVisible(false)} />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
