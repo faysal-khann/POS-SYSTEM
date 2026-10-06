@@ -15,6 +15,7 @@ import {
   KeyboardAvoidingView,
   RefreshControl,
   Vibration,
+  Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import SideMenu from "../../../components/SideMenu";
@@ -183,7 +184,26 @@ export default function POSScreen() {
     AddressLine1: "",
     City: "",
   });
+  //fix keyboard avoiding view issue
 
+  const [kbHeight, setKbHeight] = useState(0);
+
+  useEffect(() => {
+    const showEvt =
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvt =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const showSub = Keyboard.addListener(showEvt, (e) =>
+      setKbHeight(e.endCoordinates.height),
+    );
+    const hideSub = Keyboard.addListener(hideEvt, () => setKbHeight(0));
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
   const [customerId, setCustomerId] = useState<number | undefined>();
   const [customerPhone, setCustomerPhone] = useState("");
   const [loyaltyPointsMap, setLoyaltyPointsMap] = useState<
@@ -752,6 +772,8 @@ export default function POSScreen() {
             : `${paymentMethod} - ${providerName}`,
         ReceivedAmount: paidNum,
         ChangeAmount: change,
+        PointsToRedeem: parseInt(pointsToRedeem, 10) || 0, // .NET field name
+        LoyaltyPointsToRedeem: parseInt(pointsToRedeem, 10) || 0, // FastAPI field name
         Payments: status === "Completed" ? payments : [],
         Status: status,
         items: cart.map((l) => ({
@@ -763,28 +785,6 @@ export default function POSScreen() {
           LineTotal: lineTotal(l),
         })),
       });
-
-      const redeemAmt = parseInt(pointsToRedeem, 10) || 0;
-      if (redeemAmt > 0 && customerId) {
-        await adjustLoyaltyPoints({
-          CustomerID: customerId,
-          ActionType: "Redeem",
-          Points: redeemAmt,
-          Description: `Redeemed on ${result.InvoiceNo}`,
-          CreatedByUserID: session.UserID,
-        });
-      }
-
-      const earnedPoints = Math.floor(totals.grand / 1000) * 10;
-      if (earnedPoints > 0 && customerId) {
-        await adjustLoyaltyPoints({
-          CustomerID: customerId,
-          ActionType: "Earn",
-          Points: earnedPoints,
-          Description: `Earned on ${result.InvoiceNo}`,
-          CreatedByUserID: session.UserID,
-        });
-      }
 
       if (sourceDraftId.current) {
         try {
@@ -1723,6 +1723,7 @@ export default function POSScreen() {
       >
         <Pressable
           className="flex-1 bg-black/40 justify-end"
+          style={{ paddingBottom: kbHeight }}
           onPress={() => setShowProductPicker(false)}
         >
           <Pressable

@@ -31,6 +31,7 @@ export type SaleCreateInput = {
   Status: string;
   SaleDate?: string;
   LoyaltyPointsToRedeem?: number;
+  PointsToRedeem?: number;
   items: SaleItemInput[];
 };
 
