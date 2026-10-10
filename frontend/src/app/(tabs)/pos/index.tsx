@@ -24,6 +24,7 @@ import {
   getProductByBarcode,
   Product,
 } from "../../../services/productApi";
+import { normalizePhone, sendReceiptWhatsApp } from "../../../utils/whatsapp";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import {
   getCustomers,
@@ -185,7 +186,7 @@ export default function POSScreen() {
     City: "",
   });
   //fix keyboard avoiding view issue
-
+  const [walkInPhone, setWalkInPhone] = useState("");
   const [kbHeight, setKbHeight] = useState(0);
 
   useEffect(() => {
@@ -829,28 +830,42 @@ export default function POSScreen() {
       const message = `${result.InvoiceNo}\nChange: ${formatCurrency(result.ChangeAmount)}`;
 
       if (status === "Completed") {
-        Alert.alert(
-          "Sale Complete",
-          message,
-          [
+  const waPhone = customerId ? customerPhone : walkInPhone;
+  const canWhatsApp = !!normalizePhone(waPhone);
+
+  Alert.alert(
+    "Sale Complete",
+    message,
+    [
+      {
+        text: "Print Receipt",
+        onPress: async () => {
+          try {
+            await printReceipt(receipt);
+          } catch (e) {
+            console.log("Print cancelled or failed", e);
+          }
+          clearSale();
+        },
+      },
+      ...(canWhatsApp
+        ? [
             {
-              text: "Print Receipt",
+              text: "WhatsApp",
               onPress: async () => {
-                try {
-                  await printReceipt(receipt);
-                } catch (e) {
-                  console.log("Print cancelled or failed", e);
-                }
+                await sendReceiptWhatsApp(waPhone, receipt);
                 clearSale();
               },
             },
-            { text: "Done", style: "cancel", onPress: clearSale },
-          ],
-          { cancelable: false },
-        );
-      } else {
-        Alert.alert("Saved", message, [{ text: "OK", onPress: clearSale }]);
-      }
+          ]
+        : []),
+      { text: "Done", style: "cancel" as const, onPress: clearSale },
+    ],
+    { cancelable: false },
+  );
+} else {
+  Alert.alert("Saved", message, [{ text: "OK", onPress: clearSale }]);
+}
     } catch (err: any) {
       console.log("STATUS:", err?.response?.status);
       console.log("SERVER SAYS:", JSON.stringify(err?.response?.data, null, 2));
@@ -876,6 +891,7 @@ export default function POSScreen() {
     setPointsToRedeem("0");
     setCustomerId(undefined);
     setCustomerName("Walk-in Customer");
+    setWalkInPhone("");
     try {
       setInvoiceNo(await getNextInvoiceNo());
     } catch {}
@@ -999,6 +1015,22 @@ export default function POSScreen() {
             </View>
             <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
           </TouchableOpacity>
+
+          {!customerId && (
+            <View className="mt-2">
+              <Text className="text-xs text-gray-500 mb-1">
+                WhatsApp number for receipt (optional)
+              </Text>
+              <TextInput
+                value={walkInPhone}
+                onChangeText={setWalkInPhone}
+                placeholder="01XXXXXXXXX"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="phone-pad"
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900"
+              />
+            </View>
+          )}
         </View>
 
         {/* Price type: always visible */}
