@@ -11,6 +11,8 @@ A **React Native + Expo** point-of-sale application for retail businesses. It is
 
 ---
 **Backend repository:** [POS System Backend](https://github.com/faysal-khann/POS_SYSTEM_.netapi.git)
+
+**Install App (Android Only) :** [Drive Link](https://drive.google.com/drive/folders/1WarKu3LQFT4ek_qy7ctmYI_9gP_GrhTc?usp=sharing)
 ## Table of Contents
 
 1. [Project Overview](#1-project-overview)
