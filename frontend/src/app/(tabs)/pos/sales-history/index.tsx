@@ -20,8 +20,23 @@ import SideMenu from "../../../../components/SideMenu";
 import Dropdown from "../../../../components/Dropdown";
 import PaginationBar from "../../../../components/PaginationBar";
 import { usePagination } from "../../../../hooks/usePagination";
-import { getSales, getCashiers, deleteSale, SaleListItem } from "../../../../services/saleApi";
+import {
+  getSales,
+  getCashiers,
+  deleteSale,
+  getSaleDetail,
+  SaleListItem,
+} from "../../../../services/saleApi";
 import { getCustomers } from "../../../../services/customerApi";
+<<<<<<< Updated upstream
+import { getStoredUser } from "../../../../services/authApi";
+import { printReceipt } from "../../../../utils/printReceipt";
+import { saleDetailToReceipt } from "../../../../utils/saleReceipt";
+=======
+import { saleDetailToReceipt } from "../../../../utils/saleReceipt";
+import { printReceipt } from "@/utils/printReceipt";
+import { getStoredUser } from "@/services/authApi";
+>>>>>>> Stashed changes
 
 const ALL_ID = -1;
 const PAYMENT_STATUS_OPTIONS = [
@@ -35,7 +50,9 @@ export default function SalesHistoryScreen() {
   const [menuVisible, setMenuVisible] = useState(false);
   const [search, setSearch] = useState("");
   const [sales, setSales] = useState<SaleListItem[]>([]);
-  const [customers, setCustomers] = useState<{ id: number; name: string }[]>([]);
+  const [customers, setCustomers] = useState<{ id: number; name: string }[]>(
+    [],
+  );
   const [cashiers, setCashiers] = useState<{ id: number; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -55,20 +72,26 @@ export default function SalesHistoryScreen() {
       setError(null);
       const [salesData, custData, cashierData] = await Promise.all([
         getSales({
-          date_from: dateFrom ? dateFrom.toISOString().split("T")[0] : undefined,
+          date_from: dateFrom
+            ? dateFrom.toISOString().split("T")[0]
+            : undefined,
           date_to: dateTo ? dateTo.toISOString().split("T")[0] : undefined,
-          customer_id: customerFilterId !== ALL_ID ? customerFilterId : undefined,
+          customer_id:
+            customerFilterId !== ALL_ID ? customerFilterId : undefined,
           cashier_id: cashierFilterId !== ALL_ID ? cashierFilterId : undefined,
           payment_status:
             paymentStatusId !== 0
-              ? PAYMENT_STATUS_OPTIONS.find((p) => p.id === paymentStatusId)?.name
+              ? PAYMENT_STATUS_OPTIONS.find((p) => p.id === paymentStatusId)
+                  ?.name
               : undefined,
         }),
         getCustomers(),
         getCashiers(),
       ]);
       setSales(salesData);
-      setCustomers(custData.map((c: any) => ({ id: c.CustomerId, name: c.CustomerName })));
+      setCustomers(
+        custData.map((c: any) => ({ id: c.CustomerId, name: c.CustomerName })),
+      );
       setCashiers(cashierData);
     } catch (err) {
       console.error(err);
@@ -109,6 +132,30 @@ export default function SalesHistoryScreen() {
     ]);
   };
 
+  const [printingId, setPrintingId] = useState<number | null>(null);
+
+  const handlePrint = async (id: number) => {
+    try {
+      setPrintingId(id);
+      const [detail, session] = await Promise.all([
+        getSaleDetail(id),
+        getStoredUser(),
+      ]);
+      await printReceipt(
+        saleDetailToReceipt(
+          detail,
+          session?.CompanyName ?? "",
+          session?.BranchName,
+        ),
+      );
+    } catch (err) {
+      console.log("Print cancelled or failed", err);
+      Alert.alert("Error", "Couldn't print this sale.");
+    } finally {
+      setPrintingId(null);
+    }
+  };
+
   const resetFilters = () => {
     setDateFrom(null);
     setDateTo(null);
@@ -131,11 +178,18 @@ export default function SalesHistoryScreen() {
     paginatedData,
     nextPage,
     prevPage,
-  } = usePagination(filteredSales, 8, `${search}-${customerFilterId}-${cashierFilterId}-${paymentStatusId}`);
+  } = usePagination(
+    filteredSales,
+    8,
+    `${search}-${customerFilterId}-${cashierFilterId}-${paymentStatusId}`,
+  );
 
   const hasActiveFilters =
-    dateFrom !== null || dateTo !== null || customerFilterId !== ALL_ID ||
-    cashierFilterId !== ALL_ID || paymentStatusId !== 0;
+    dateFrom !== null ||
+    dateTo !== null ||
+    customerFilterId !== ALL_ID ||
+    cashierFilterId !== ALL_ID ||
+    paymentStatusId !== 0;
 
   return (
     <View className="flex-1 bg-gray-50">
@@ -145,7 +199,9 @@ export default function SalesHistoryScreen() {
           <TouchableOpacity onPress={() => setMenuVisible(true)}>
             <Ionicons name="menu" size={24} color="#111827" />
           </TouchableOpacity>
-          <Text className="text-lg font-semibold text-gray-900 ml-3">Sales History</Text>
+          <Text className="text-lg font-semibold text-gray-900 ml-3">
+            Sales History
+          </Text>
         </View>
       </View>
 
@@ -167,12 +223,18 @@ export default function SalesHistoryScreen() {
             hasActiveFilters ? "border-blue-500" : "border-gray-200"
           }`}
         >
-          <Ionicons name="filter" size={16} color={hasActiveFilters ? "#3B82F6" : "#374151"} />
+          <Ionicons
+            name="filter"
+            size={16}
+            color={hasActiveFilters ? "#3B82F6" : "#374151"}
+          />
         </TouchableOpacity>
       </View>
 
       <View className="px-4 mb-2">
-        <Text className="text-sm text-gray-500">{filteredSales.length} sales</Text>
+        <Text className="text-sm text-gray-500">
+          {filteredSales.length} sales
+        </Text>
       </View>
 
       {loading ? (
@@ -182,7 +244,10 @@ export default function SalesHistoryScreen() {
       ) : error ? (
         <View className="flex-1 items-center justify-center px-6">
           <Text className="text-red-500 text-center mb-3">{error}</Text>
-          <TouchableOpacity onPress={fetchSales} className="bg-blue-600 px-4 py-2 rounded-lg">
+          <TouchableOpacity
+            onPress={fetchSales}
+            className="bg-blue-600 px-4 py-2 rounded-lg"
+          >
             <Text className="text-white font-medium">Retry</Text>
           </TouchableOpacity>
         </View>
@@ -190,10 +255,25 @@ export default function SalesHistoryScreen() {
         <FlatList
           data={paginatedData}
           keyExtractor={(item) => String(item.SaleID)}
-          renderItem={({ item }) => <SaleRow sale={item} onDeleted={handleDelete} />}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          renderItem={({ item }) => (
+<<<<<<< Updated upstream
+            <SaleRow
+              sale={item}
+              onDeleted={handleDelete}
+              onPrint={handlePrint}
+              printing={printingId === item.SaleID}
+            />
+=======
+            <SaleRow sale={item} onDeleted={handleDelete} />
+>>>>>>> Stashed changes
+          )}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
           ListEmptyComponent={
-            <Text className="text-center text-gray-400 mt-10">No sales found</Text>
+            <Text className="text-center text-gray-400 mt-10">
+              No sales found
+            </Text>
           }
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
         />
@@ -211,13 +291,26 @@ export default function SalesHistoryScreen() {
       )}
 
       {/* Filter modal */}
-      <Modal visible={showFilter} transparent animationType="fade" onRequestClose={() => setShowFilter(false)}>
-        <Pressable className="flex-1 bg-black/40 justify-center px-6" onPress={() => setShowFilter(false)}>
-          <Pressable className="bg-white rounded-2xl w-full max-w-sm p-5" onPress={(e) => e.stopPropagation()}>
+      <Modal
+        visible={showFilter}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowFilter(false)}
+      >
+        <Pressable
+          className="flex-1 bg-black/40 justify-center px-6"
+          onPress={() => setShowFilter(false)}
+        >
+          <Pressable
+            className="bg-white rounded-2xl w-full max-w-sm p-5"
+            onPress={(e) => e.stopPropagation()}
+          >
             <View className="flex-row items-center justify-between mb-5">
               <View className="flex-row items-center">
                 <Ionicons name="filter" size={20} color="#3B82F6" />
-                <Text className="text-lg font-semibold text-gray-900 ml-2">Filter Sales</Text>
+                <Text className="text-lg font-semibold text-gray-900 ml-2">
+                  Filter Sales
+                </Text>
               </View>
               <TouchableOpacity onPress={() => setShowFilter(false)}>
                 <Ionicons name="close" size={22} color="#6B7280" />
@@ -227,7 +320,9 @@ export default function SalesHistoryScreen() {
             <ScrollView showsVerticalScrollIndicator={false}>
               {/* Date range */}
               <View className="mb-4">
-                <Text className="text-sm font-medium text-gray-700 mb-1.5">Date Range</Text>
+                <Text className="text-sm font-medium text-gray-700 mb-1.5">
+                  Date Range
+                </Text>
                 <View className="flex-row">
                   <TouchableOpacity
                     onPress={() => setShowFromPicker(true)}
@@ -302,7 +397,10 @@ export default function SalesHistoryScreen() {
               </TouchableOpacity>
 
               {hasActiveFilters && (
-                <TouchableOpacity onPress={resetFilters} className="items-center mt-3">
+                <TouchableOpacity
+                  onPress={resetFilters}
+                  className="items-center mt-3"
+                >
                   <Text className="text-gray-500 text-sm">Reset</Text>
                 </TouchableOpacity>
               )}

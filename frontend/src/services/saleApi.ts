@@ -167,3 +167,40 @@ export const getDraftDetail = async (id: number): Promise<DraftDetail> => {
   const res = await saleApi.get(`/sales/drafts/${id}`);
   return res.data;
 };
+
+export type SaleDetail = {
+  SaleID: number;
+  InvoiceNo: string;
+  SaleDate: string;
+  CustomerID: number | null;
+  CustomerName: string;
+  CustomerPhone: string | null;
+  CashierName: string;
+  BranchID: number;
+  CompanyID: number;
+  PriceType: string | null;
+  SubTotal: number;
+  DiscountAmount: number;
+  LoyaltyDiscountAmount: number;
+  TaxAmount: number;
+  GrandTotal: number;
+  PaymentMethod: string | null;
+  PaymentStatus: string;
+  ReceivedAmount: number;
+  ChangeAmount: number;
+  Status: string;
+  items: {
+    ProductID: number;
+    ProductName: string;
+    Qty: number;
+    UnitPrice: number;
+    DiscountPercent: number;
+    TaxPercent: number;
+    LineTotal: number;
+  }[];
+};
+
+export const getSaleDetail = async (id: number): Promise<SaleDetail> => {
+  const res = await saleApi.get(`/sales/${id}`);
+  return res.data;
+};

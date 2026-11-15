@@ -326,3 +326,54 @@ def get_draft_sale_detail(sale_id: int, db: Session = Depends(get_db)):
         ],
     )
 
+
+@router.get("/{sale_id}")
+def get_sale_detail(sale_id: int, db: Session = Depends(get_db)):
+    sale = (
+        db.query(Sale)
+        .options(
+            joinedload(Sale.items).joinedload(SaleItem.product),
+            joinedload(Sale.customer),
+        )
+        .filter(Sale.SaleID == sale_id)
+        .first()
+    )
+    if not sale:
+        raise HTTPException(status_code=404, detail="Sale not found")
+
+    cashier = db.query(User).filter(User.UserID == sale.UserID).first()
+
+    return {
+        "SaleID": sale.SaleID,
+        "InvoiceNo": sale.InvoiceNo,
+        "SaleDate": sale.SaleDate,
+        "CustomerID": sale.CustomerID,
+        "CustomerName": sale.customer.CustomerName if sale.customer else "Walk-in Customer",
+        "CustomerPhone": sale.customer.Phone if sale.customer else None,
+        "CashierName": cashier.FullName if cashier else "—",
+        "BranchID": sale.BranchID,
+        "CompanyID": sale.CompanyID,
+        "PriceType": sale.PriceType,
+        "SubTotal": float(sale.SubTotal or 0),
+        "DiscountAmount": float(sale.DiscountAmount or 0),
+        "LoyaltyDiscountAmount": float(sale.LoyaltyDiscountAmount or 0),
+        "TaxAmount": float(sale.TaxAmount or 0),
+        "GrandTotal": float(sale.GrandTotal or 0),
+        "PaymentMethod": sale.PaymentMethod,
+        "PaymentStatus": sale.PaymentStatus,
+        "ReceivedAmount": float(sale.ReceivedAmount or 0),
+        "ChangeAmount": float(sale.ChangeAmount or 0),
+        "Status": sale.Status,
+        "items": [
+            {
+                "ProductID": i.ProductID,
+                "ProductName": i.product.ProductName if i.product else "—",
+                "Qty": float(i.Qty),
+                "UnitPrice": float(i.UnitPrice),
+                "DiscountPercent": float(i.DiscountPercent or 0),
+                "TaxPercent": float(i.TaxPercent or 0),
+                "LineTotal": float(i.LineTotal),
+            }
+            for i in sale.items
+        ],
+    }
