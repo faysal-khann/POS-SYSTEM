@@ -10,7 +10,7 @@ A **React Native + Expo** point-of-sale application for retail businesses. It is
 ![Azure](https://img.shields.io/badge/Hosted%20on-Azure-0078D4?logo=microsoftazure)
 
 ---
-
+**Backend repository:** [POS System Backend](https://github.com/faysal-khann/POS_SYSTEM_.netapi.git)
 ## Table of Contents
 
 1. [Project Overview](#1-project-overview)
@@ -31,10 +31,17 @@ A **React Native + Expo** point-of-sale application for retail businesses. It is
 
 ## 1. Project Overview
 
-Store staff use this app on a phone or tablet to ring up sales, process returns, manage products, customers, suppliers, purchases, stock and expenses, administer users and permissions, and close cashier shifts. It is a thin client: all business rules and data live in the **.NET 10 Web API** on Azure.
-
-> **Current backend:** .NET 10 only (the earlier FastAPI backend has been replaced).
-
+This app lets store staff run daily retail operations from a phone or tablet:
+ 
+- ring up sales at the till (with held and draft sales),
+- process returns,
+- manage products, customers, suppliers, purchases, stock and expenses,
+- administer users, roles and permissions,
+- close cashier shifts.
+It is a thin client: all business rules and data live in the **.NET 10 Web API** (`POS_SYSTEM`, Clean Architecture, Entity Framework Core). The API runs on **Microsoft Azure** and stores data in **Azure SQL Database**; the app talks to it over HTTPS using JSON.
+ 
+> **Current backend:** .NET 10 only. The app's API layer was originally written for an earlier FastAPI backend, which has been replaced.
+ 
 ---
 
 ## 2. Application Features
